@@ -1,5 +1,5 @@
 <div align="center">
-<img src="./vajra/assets/Vayuvahana_logo.png" alt="Vayuvahana Technologies Private Limited Logo" width="300">
+<img src="./vajra/assets/Vayuvahana_logo.png" alt="Vayuvahana Technologies Private Limited Logo" width="600">
 </div>
 
 Vayuvahana Technologies Private Limited [VajraV1](https://github.com/NamanMakkar/VayuAI) is a 
