@@ -29,8 +29,10 @@ modes = {'train', 'val', 'predict', 'export', 'track'}
 tasks = {'detect', 'segment', 'classify', 'multilabel_classify', 'pose', 'obb', 'small_obj_detect'}
 
 models_for_tasks = {'detect' : 'vajra-v1-nano-det.pt',
+                    'small_obj_detect': 'vajra-v1-nano-pose.pt',
                     'segment' : 'vajra-v1-nano-seg.pt',
                     'classify' : 'vajra-v1-nano-cls.pt',
+                    'multilabel_classify': 'vajra-v1-nano-cls.pt',
                     'pose' : 'vajra-v1-nano-pose.pt',
                     'obb': 'vajra-v1-nano-obb.pt'}
 
