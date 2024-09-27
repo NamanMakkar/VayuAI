@@ -1,0 +1,13 @@
+# Vayuvahana Technologies Private Limited Vajra, AGPL-3.0 License
+
+path: ../data/tiger-pose
+train: train
+val: val
+
+kpt_shape: [12, 2]
+flip_idx: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+
+names:
+  0: tiger
+
+download: https://github.com/ultralytics/assets/releases/download/v0.0.0/tiger-pose.zip
