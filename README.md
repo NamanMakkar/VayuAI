@@ -1,9 +1,12 @@
-[Vayuvahana Technologies Private Limited VajraV1] (https://github.com/NamanMakkar/VayuAI) is a 
+<div align="center">
+<img src="./vajra/assets/Vayuvahana_logo.png" alt="Vayuvahana Technologies Private Limited Logo" width="100%">
+</div>
+Vayuvahana Technologies Private Limited [VajraV1] (https://github.com/NamanMakkar/VayuAI) is a 
 state-of-the-art (SOTA) real time object detection model inspired by the YOLO model architectures. VajraV1 is a family of fast, lightweight models that can be used for a variety of
 tasks like object detection and tracking, instance segmentation, oriented object detection, pose detection, and image classification.
 
 ## <div align="center">Enterprise License</div>
-To request for an Enterprise License please get in touch [Email](mailto:namansingh2803@gmail.com)
+To request for an Enterprise License please get in touch via [Email](mailto:namansingh2803@gmail.com)
 
 ## <div align="center">Performance</div>
 Details to be published
@@ -13,7 +16,7 @@ Details to be published
 <details open>
 <summary>Install</summary>
 
-Git clone the VayuAI package including all [requirements](https://github.com/NamanMakkar/VayuAI/pyproject.toml) in a [**Python>=3.8**](https://www.python.org) environment.
+Git clone the VayuAI package including all [requirements](https://github.com/NamanMakkar/VayuAI/blob/main/pyproject.toml) in a [**Python>=3.8**](https://www.python.org) environment.
 
 ```bash
 git clone https://github.com/NamanMakkar/VayuAI.git
@@ -38,6 +41,7 @@ Vajra can also be used directly in a Python environment, and accepts the same ar
 ```python
 from vajra import Vajra, VajraDEYO
 model = Vajra("vajra-v1-nano-det")
+model_vajra_deyo = VajraDEYO("vajra-deyo-v1-nano-det")
 
 train_results = model.train(
     data="coco8.yaml",
@@ -61,6 +65,7 @@ path = model.export(format="onnx")
 - VajraV1-pose
 - VajraV1-seg
 - VajraV1-obb
+- VajraV1-world
 - VajraV1-DEYO-det
 - SAM
 - EfficientNetV1
@@ -80,7 +85,31 @@ path = model.export(format="onnx")
 - detect
 - small_obj_detect
 - classify
+- multilabel_classify
 - pose
 - obb
 - segment
-- multilabel_classify
+- world
+
+## Model Architecture Details
+
+To be published
+
+## Acknowledgements
+
+- [https://github.com/ultralytics/ultralytics](https://github.com/ultralytics/ultralytics)
+- [https://github.com/ouyanghaodong/DEYOv1.5](https://github.com/ouyanghaodong/DEYOv1.5)
+- [https://github.com/WongKinYiu/yolov9](https://github.com/WongKinYiu/yolov9)
+- [https://github.com/meituan/YOLOv6](https://github.com/meituan/YOLOv6)
+- [https://github.com/huggingface/pytorch-image-models](https://github.com/huggingface/pytorch-image-models)
+- [https://github.com/pytorch/vision](https://github.com/pytorch/vision)
+
+## <div align="center">License</div>
+
+Vayuvahana Technologies Private Limited offers two licensing options:
+
+- **AGPL-3.0 License**: This is an [OSI-approved](https://opensource.org/license) open-source
+license for researchers for the purpose of promoting collaboration. See the [LICENSE](https://github.com/NamanMakkar/VayuAI/blob/main/LICENSE) file for details.
+
+- **Enterprise License**: This license is designed for commercial use and enables integration of 
+VayuAI software and AI models into commercial goods and services, bypassing the open-source requirements of AGPL-3.0. If your product requires embedding the software for commercial purposes or require access to more capable enterprise AI models in the future, reach out via [Email](mailto:namansingh2803@gmail.com).
