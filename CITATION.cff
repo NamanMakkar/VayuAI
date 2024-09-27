@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+title: Vayuvahana Technologies VayuAI
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Naman Balbir Singh
+    family-names: Makkar
+    affiliation: Vayuvahana Technologies Private Limited
+    orcid: 'https://orcid.org/0009-0006-0735-0523'
+repository-code: 'https://github.com/NamanMakkar/VayuAI'
+license: AGPL-3.0
+version: 1.0.0
+date-released: "2024-27-09"
