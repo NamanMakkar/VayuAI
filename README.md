@@ -1,7 +1,8 @@
 <div align="center">
-<img src="./vajra/assets/Vayuvahana_logo.png" alt="Vayuvahana Technologies Private Limited Logo" width="100%">
+<img src="./vajra/assets/Vayuvahana_logo.png" alt="Vayuvahana Technologies Private Limited Logo" width="150">
 </div>
-Vayuvahana Technologies Private Limited [VajraV1] (https://github.com/NamanMakkar/VayuAI) is a 
+
+Vayuvahana Technologies Private Limited [VajraV1](https://github.com/NamanMakkar/VayuAI) is a 
 state-of-the-art (SOTA) real time object detection model inspired by the YOLO model architectures. VajraV1 is a family of fast, lightweight models that can be used for a variety of
 tasks like object detection and tracking, instance segmentation, oriented object detection, pose detection, and image classification.
 
