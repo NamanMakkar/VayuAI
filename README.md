@@ -68,6 +68,8 @@ path = model.export(format="onnx")
 - VajraV1-obb
 - VajraV1-world
 - VajraV1-DEYO-det
+- VajraV1-DEYO-seg (Coming Soon!)
+- VajraV1-DEYO-pose (Coming Soon!)
 - SAM
 - EfficientNetV1
 - EfficientNetV2
@@ -77,8 +79,11 @@ path = model.export(format="onnx")
 - ConvNeXtV2
 - ResNet
 - ResNeSt
+- ResNeXt (Coming Soon!)
+- ResNetV2 (Coming Soon!)
 - EdgeNeXt
 - ME-NeSt
+- VajraME-NeSt
 - MixConvNeXt
 
 ## Tasks Supported
@@ -91,6 +96,7 @@ path = model.export(format="onnx")
 - obb
 - segment
 - world
+- panoptic (Coming Soon!)
 
 ## Model Architecture Details
 
@@ -99,6 +105,7 @@ To be published
 ## Acknowledgements
 
 - [https://github.com/ultralytics/ultralytics](https://github.com/ultralytics/ultralytics)
+- [https://github.com/ultralytics/yolov5](https://github.com/ultralytics/yolov5)
 - [https://github.com/ouyanghaodong/DEYOv1.5](https://github.com/ouyanghaodong/DEYOv1.5)
 - [https://github.com/WongKinYiu/yolov9](https://github.com/WongKinYiu/yolov9)
 - [https://github.com/meituan/YOLOv6](https://github.com/meituan/YOLOv6)

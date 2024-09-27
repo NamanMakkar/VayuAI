@@ -40,7 +40,7 @@ from vajra.dataset.utils import check_cls_dataset, check_det_dataset
 from vajra.checks import check_model_file_from_stem, check_amp, check_file, check_img_size, print_args
 from vajra.utils.torch_utils import (
     EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, one_cycle, init_seeds, strip_optimizer,
-    smart_resume, torch_distributed_zero_first)
+    smart_resume, torch_distributed_zero_first, autocast)
 
 class SmallObjDetectionTrainer(Trainer):
     def __init__(self, config=HYPERPARAMS_CFG_DICT, model_configuration=None, _callbacks=None) -> None:
@@ -239,7 +239,7 @@ class SmallObjDetectionTrainer(Trainer):
                         if "momentum" in x:
                             x["momentum"] = np.interp(num_iters, x_interp, [self.args.warmup_momentum, self.args.momentum])
 
-                with torch.cuda.amp.autocast(self.amp):
+                with autocast(self.amp):
                     batch = self.preprocess_batch(batch)
                     self.loss, self.loss_items = self.model(batch)
                     if RANK != -1:

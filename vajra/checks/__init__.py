@@ -48,6 +48,7 @@ from vajra.utils import (
     url2file
 )
 
+
 PYTHON_VERSION = platform.python_version()
 
 def parse_version(version="0.0.0") -> tuple:
@@ -354,13 +355,15 @@ def check_vajra(verbose=True, device=""):
     LOGGER.info(f'Setup complete! {s}')
 
 def check_amp(model):
+    from vajra.utils.torch_utils import autocast
+    
     device = next(model.parameters()).device
     if device.type in ("cpu", "mps"):
         return False
 
     def amp_allclose(model, img):
         fp32 = model(img, device = device, verbose=False)[0].boxes.data
-        with torch.cuda.amp.autocast(True):
+        with autocast(True):
             amp = model(img, device=device, verbose=False)[0].boxes.data
         del model
         

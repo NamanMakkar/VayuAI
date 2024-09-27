@@ -6,12 +6,12 @@ import numpy as np
 import torch
 
 from vajra.utils import LOGGER, colorstr, HYPERPARAMS_CFG
-from vajra.utils.torch_utils import profile
+from vajra.utils.torch_utils import profile, autocast
 
 
 def check_train_batch_size(model, img_size=640, amp=True):
     # Check YOLOv5 training batch size
-    with torch.cuda.amp.autocast(amp):
+    with autocast(amp):
         return autobatch(deepcopy(model).train(), img_size)  # compute optimal batch size
 
 

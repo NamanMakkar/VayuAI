@@ -10,6 +10,7 @@ from vajra.tal.assigner_utils import dist_calculator
 from vajra.tal.anchor_generator import generate_anchors, dist2bbox, bbox2dist, dist2rbox
 from vajra.metrics import bbox_iou, probabilistic_iou, OKS_SIGMA
 from vajra.utils import LOGGER
+from vajra.utils.torch_utils import autocast
 
 class VarifocalLoss(nn.Module):
     def __init__(self) -> None:
@@ -18,7 +19,7 @@ class VarifocalLoss(nn.Module):
     @staticmethod
     def forward(pred_score, gt_score, label, alpha=0.75, gamma=2.0):
         weight = alpha * pred_score.sigmoid().pow(gamma) * (1 - label) + gt_score * label
-        with torch.cuda.amp.autocast(enabled=False):
+        with autocast(enabled=False):
             loss = (F.binary_cross_entropy_with_logits(pred_score.float(), gt_score.float(), reduction='none') * weight).mean(1).sum()
         return loss
 

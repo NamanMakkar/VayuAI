@@ -37,7 +37,7 @@ from vajra import callbacks
 from vajra.utils.files import get_latest_run
 from vajra.dataset.utils import check_cls_dataset, check_det_dataset
 from vajra.utils.torch_utils import (
-    EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, one_cycle, init_seeds, strip_optimizer,
+    EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, one_cycle, init_seeds, strip_optimizer, autocast,
     smart_resume, torch_distributed_zero_first)
 
 class Trainer:
@@ -289,7 +289,7 @@ class Trainer:
                         if "momentum" in x:
                             x["momentum"] = np.interp(num_iters, x_interp, [self.args.warmup_momentum, self.args.momentum])
 
-                with torch.cuda.amp.autocast(self.amp):
+                with autocast(self.amp):
                     batch = self.preprocess_batch(batch)
                     #LOGGER.info(f"Image device: {batch['img'].device}\n")
                     #LOGGER.info(f"Bboxes device: {batch['bboxes'].device}\n")
