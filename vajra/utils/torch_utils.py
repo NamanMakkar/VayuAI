@@ -142,6 +142,12 @@ def get_cpu_info():
     string = info.get(k[0] if k[0] in info else k[1] if k[1] in info else k[2], "unkown")
     return string.replace("(R)", "").replace("CPU", "").replace("@ ", "")
 
+def autocast(enabled: bool, device: str = "cuda"):
+    if TORCH_1_13:
+        return torch.amp.autocast(device, enabled=enabled)
+    else:
+        return torch.cuda.amp.autocast(enabled)
+
 def reshape_classifier_output(model, n=1000):
     # Update a TorchVision classification model to class count 'n' if required
     from nn.head import Classification
