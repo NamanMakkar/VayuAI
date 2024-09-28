@@ -21,6 +21,7 @@ Git clone the VayuAI package including all [requirements](https://github.com/Nam
 
 ```bash
 git clone https://github.com/NamanMakkar/VayuAI.git
+cd VayuAI
 pip install .
 ```
 </details>
@@ -85,6 +86,9 @@ path = model.export(format="onnx")
 - ME-NeSt
 - VajraME-NeSt
 - MixConvNeXt
+- ViT (Coming Soon!)
+- Swin (Coming Soon!)
+- SwinV2 (Coming Soon!)
 
 ## Tasks Supported
 
