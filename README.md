@@ -18,14 +18,14 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 | VajraV1-large-det | 640                   |                  |                          |                                | 27.31               | 180.1             |
 | VajraV1-xlarge-det | 640                   |                 |                          |                                | 42.64               | 280.5             |
 
-Performance to be published soon!
+Results to be published soon!
 
 ## <div align="center">Documentation</div>
 
 <details open>
 <summary>Install</summary>
 
-Git clone the VayuAI package including all [requirements](https://github.com/NamanMakkar/VayuAI/blob/main/pyproject.toml) in a [**Python>=3.8**](https://www.python.org) environment.
+Git clone the VayuAI SDK including all [requirements](https://github.com/NamanMakkar/VayuAI/blob/main/pyproject.toml) in a [**Python>=3.8**](https://www.python.org) environment.
 
 ```bash
 git clone https://github.com/NamanMakkar/VayuAI.git

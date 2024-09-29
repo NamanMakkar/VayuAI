@@ -1,5 +1,6 @@
 # Vayuvahana Technologies Private Limited Vajra, AGPL-3.0 License
 
+import gc
 import json
 import os
 import shutil
@@ -319,9 +320,7 @@ class Exporter:
     def export_onnx(self, prefix=colorstr("ONNX:")):
         requirements = ["onnx>=1.12.0"]
         if self.args.simplify:
-            requirements += ["onnxsim>=0.4.33", "onnxruntime-gpu" if torch.cuda.is_available() else "onnxruntime"]
-            #if ARM64:
-                #check_requirements("cmake")
+            requirements += ["onnxsim==0.1.34", "onnxruntime-gpu" if torch.cuda.is_available() else "onnxruntime"]
         check_requirements(requirements)
         import onnx
 
@@ -628,14 +627,17 @@ class Exporter:
             import tensorrt as trt  # noqa
         except ImportError:
             if LINUX:
-                check_requirements("nvidia-tensorrt", cmds="-U --index-url https://pypi.ngc.nvidia.com")
+                check_requirements("tensorrt>7.0.0,<=10.1.0")
+                #check_requirements("nvidia-tensorrt", cmds="-U --index-url https://pypi.ngc.nvidia.com")
             import tensorrt as trt  # noqa
 
-        check_version(trt.__version__, "7.0.0", strict=True)  # require tensorrt>=7.0.0
+        check_version(trt.__version__, ">=7.0.0", strict=True)  # require tensorrt>=7.0.0
+        check_version(trt.__version__, "<=10.1.0")
 
         self.args.simplify = True
 
         LOGGER.info(f"\n{prefix} starting export with TensorRT {trt.__version__}...")
+        is_trt10 = int(trt.__version__.split(".")[0]) >= 10
         assert Path(f_onnx).exists(), f"failed to export ONNX file: {f_onnx}"
         f = self.file.with_suffix(".engine")  # TensorRT engine file
         logger = trt.Logger(trt.Logger.INFO)
@@ -644,11 +646,16 @@ class Exporter:
 
         builder = trt.Builder(logger)
         config = builder.create_builder_config()
-        config.max_workspace_size = self.args.workspace * 1 << 30
-        # config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, workspace << 30)  # fix TRT 8.4 deprecation notice
+        workspace = int(self.args.workspace * (1 << 30))
+        if is_trt10:
+            config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, workspace)
+        else:
+            config.max_workspace_size = workspace
 
         flag = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
         network = builder.create_network(flag)
+        half = builder.platform_has_fast_fp16 and self.args.half
+        int8 = builder.platform_has_fast_int8 and self.args.int8
         parser = trt.OnnxParser(network, logger)
         if not parser.parse_from_file(f_onnx):
             raise RuntimeError(f"failed to load ONNX file: {f_onnx}")
@@ -669,23 +676,68 @@ class Exporter:
                 profile.set_shape(inp.name, (1, *shape[1:]), (max(1, shape[0] // 2), *shape[1:]), shape)
             config.add_optimization_profile(profile)
 
-        LOGGER.info(
-            f"{prefix} building FP{16 if builder.platform_has_fast_fp16 and self.args.half else 32} engine as {f}"
-        )
-        if builder.platform_has_fast_fp16 and self.args.half:
+        LOGGER.info(f"{prefix} building {'INT8' if int8 else 'FP' + ('16' if half else '32')} engine as {f}")
+        if int8:
+            config.set_flag(trt.BuilderFlag.INT8)
+            config.set_calibration_profile(profile)
+            config.profiling_verbosity = trt.ProfilingVerbosity.DETAILED
+
+            class EngineCalibrator(trt.IInt8Calibrator):
+                def __init__(self,
+                             dataset,
+                             batch: int,
+                             cache: str = "",
+                        ) -> None:
+                        trt.IInt8Calibrator.__init__(self)
+                        self.dataset = dataset
+                        self.data_iter = iter(dataset)
+                        self.algo = trt.CalibrationAlgoType.ENTROPY_CALIBRATION_2
+                        self.batch = batch
+                        self.cache = Path(cache)
+
+                def get_algorithm(self) -> trt.CalibrationAlgoType:
+                    return self.algo
+
+                def get_batch_size(self) -> int:
+                    return self.batch or 1
+
+                def get_batch(self, names) -> list:
+                    try:
+                        im0s = next(self.data_iter)["img"] / 255.0
+                        im0s = im0s.to("cuda") if im0s.device.type == "cpu" else im0s
+                        return [int(im0s.data_ptr())]
+                    except StopIteration:
+                        return None
+
+                def read_calibration_cache(self) -> bytes:
+                    if self.cache.exists() and self.cache.suffix == ".cache":
+                        return self.cache.read_bytes()
+
+                def write_calibration_cache(self, cache) -> None:
+                    _ = self.cache.write_bytes(cache)
+
+            config.int8_calibrator = EngineCalibrator(
+                dataset=self.get_int8_calibration_dataloader(prefix),
+                batch=2 * self.args.batch,
+                cache=str(self.file.with_suffix(".cache"))
+            )
+
+        elif half:
             config.set_flag(trt.BuilderFlag.FP16)
 
         del self.model
+        gc.collect()
         torch.cuda.empty_cache()
 
         # Write file
-        with builder.build_engine(network, config) as engine, open(f, "wb") as t:
+        build = builder.build_serialized_network if is_trt10 else builder.build_engine
+        with build(network, config) as engine, open(f, "wb") as t:
             # Metadata
             meta = json.dumps(self.metadata)
             t.write(len(meta).to_bytes(4, byteorder="little", signed=True))
             t.write(meta.encode())
             # Model
-            t.write(engine.serialize())
+            t.write(engine if is_trt10 else engine.serialize())
 
         return f, None
 
