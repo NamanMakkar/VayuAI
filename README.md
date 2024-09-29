@@ -10,13 +10,13 @@ tasks like object detection and tracking, instance segmentation, oriented object
 To request for an Enterprise License please get in touch via [Email](mailto:namansingh2803@gmail.com)
 
 ## <div align="center">Performance</div>
-| Model                                                                                | size<br><sup>(pixels) | mAP<sup>val<br>50-95 | Speed<br><sup>CPU ONNX<br>(ms) | Speed<br><sup>A100 TensorRT<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
+| Model                                                                                | size<br><sup>(pixels) | mAP<sup>val<br>50-95 | Speed<br><sup>P100 PyTorch Latency<br>(ms) | Speed<br><sup>A100 PyTorch Latency<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
 | ------------------------------------------------------------------------------------ | --------------------- | -------------------- | ------------------------------ | ----------------------------------- | ------------------ | ----------------- |
-| VajraV1-nano-det | 640                   |                 |                          |                               | 1.56                | 9.2               |
-| VajraV1-small-det | 640                   |                |                         |                                | 6.075               | 32.7              |
-| VajraV1-medium-det | 640                   |                 |                          |                                | 15.11               | 87.8              |
-| VajraV1-large-det | 640                   |                  |                          |                                | 27.31               | 180.1             |
-| VajraV1-xlarge-det | 640                   |                 |                          |                                | 42.64               | 280.5             |
+| VajraV1-nano-det | 640                   |                 | 1.9                        | 1.3                              | 1.56                | 9.2               |
+| VajraV1-small-det | 640                   |                | 3.2                      | 1.5                               | 6.075               | 32.7              |
+| VajraV1-medium-det | 640                   |                 | 6.1                        | 2.1                               | 15.11               | 87.8              |
+| VajraV1-large-det | 640                   |                  | 10.0                        | 3.0                               | 27.31               | 180.1             |
+| VajraV1-xlarge-det | 640                   |                 | 14.4                       | 4.0                               | 42.64               | 280.5             |
 
 Results to be published soon!
 
