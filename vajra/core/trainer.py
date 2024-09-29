@@ -37,7 +37,7 @@ from vajra import callbacks
 from vajra.utils.files import get_latest_run
 from vajra.dataset.utils import check_cls_dataset, check_det_dataset
 from vajra.utils.torch_utils import (
-    EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, one_cycle, init_seeds, strip_optimizer, autocast,
+    TORCH_2_4, EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, one_cycle, init_seeds, strip_optimizer, autocast,
     smart_resume, torch_distributed_zero_first)
 
 class Trainer:
@@ -197,7 +197,9 @@ class Trainer:
         if RANK > -1 and world_size > 1:
             dist.broadcast(self.amp, src=0)
         self.amp = bool(self.amp)
-        self.scaler = torch.amp.GradScaler(enabled=self.amp)
+        self.scaler = (
+            torch.amp.GradScaler("cuda", enabled=self.amp) if TORCH_2_4 else torch.cuda.amp.GradScaler(enabled=self.amp)
+        )
         if world_size > 1:
             self.model = nn.parallel.DistributedDataParallel(self.model, device_ids=[RANK])
 

@@ -39,7 +39,7 @@ from vajra.utils.torch_utils import de_parallel, torch_distributed_zero_first
 from vajra.dataset.utils import check_cls_dataset, check_det_dataset
 from vajra.checks import check_model_file_from_stem, check_amp, check_file, check_img_size, print_args
 from vajra.utils.torch_utils import (
-    EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, one_cycle, init_seeds, strip_optimizer,
+    TORCH_2_4, EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, one_cycle, init_seeds, strip_optimizer,
     smart_resume, torch_distributed_zero_first, autocast)
 
 class SmallObjDetectionTrainer(Trainer):
@@ -147,7 +147,9 @@ class SmallObjDetectionTrainer(Trainer):
         if RANK > -1 and world_size > 1:
             dist.broadcast(self.amp, src=0)
         self.amp = bool(self.amp)
-        self.scaler = torch.amp.GradScaler(enabled=self.amp)
+        self.scaler = (
+            torch.amp.GradScaler("cuda", enabled=self.amp) if TORCH_2_4 else torch.cuda.amp.GradScaler(enabled=self.amp)
+        )
         if world_size > 1:
             self.model = nn.parallel.DistributedDataParallel(self.model, device_ids=[RANK])
 
