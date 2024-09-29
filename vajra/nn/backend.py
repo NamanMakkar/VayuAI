@@ -142,7 +142,7 @@ class Backend(nn.Module):
             is_trt10 = not hasattr(model, "num_bindings")
             num = range(model.num_io_tensors) if is_trt10 else range(model.num_bindings)
 
-            for i in range(num):
+            for i in num:
                 if is_trt10:
                     name = model.get_tensor_name(i)
                     dtype = trt.nptype(model.get_tensor_dtype(name))
