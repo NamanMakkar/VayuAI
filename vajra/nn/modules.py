@@ -553,7 +553,7 @@ class VajraV2BottleneckBlock(nn.Module):
         self.kernel_size=kernel_size
         self.bottleneck_pyconv = bottleneck_pyconv
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, num_blocks=1, shortcut=shortcut, kernel_size=1, expansion_ratio=1) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, num_blocks=1, shortcut=shortcut, kernel_size=1) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.add = shortcut and in_c == out_c
         self.cbam = CBAM(out_c)
