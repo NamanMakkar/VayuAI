@@ -84,9 +84,9 @@ class VajraV2Model(nn.Module):
         vajra_neck3 = vajra_neck3 + vajra3_chunks[1]
 
         pyramid_pool_neck2 = self.pyramid_pool_neck2([vajra_neck1, vajra_neck2, vajra_neck3]) # stride 32
-        pyramid_pool_neck2 = pyramid_pool_neck2 + vajra4_chunks[0]
+        pyramid_pool_neck2 = pyramid_pool_neck2 + vajra4_chunks[0] if self.vajra_block4.out_c == 2 * self.pyramid_pool_neck2.out_c else pyramid_pool_neck2
         vajra_neck4 = self.vajra_neck4(pyramid_pool_neck2)
-        vajra_neck4 = vajra_neck4 + vajra4_chunks[1]
+        vajra_neck4 = vajra_neck4 + vajra4_chunks[1] if self.vajra_block4.out_c == 2 * self.vajra_neck4.out_c else vajra_neck4
 
         outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
         return outputs
