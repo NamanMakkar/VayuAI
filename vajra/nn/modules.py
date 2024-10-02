@@ -483,7 +483,7 @@ class PoolingAttention(nn.Module):
         return x * self.scale
 
 class VajraBottleneckBlock(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1,bottleneck_pyconv=False) -> None:
+    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, bottleneck_pyconv=False) -> None:
         super().__init__()
         block = BottleneckPyConv if bottleneck_pyconv else Bottleneck
         hidden_c = int(out_c * 0.5)
@@ -544,7 +544,7 @@ class VajraBottleneckAttentionBlock(nn.Module):
 class VajraV2BottleneckBlock(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1,bottleneck_pyconv=False) -> None:
         super().__init__()
-        block = BottleneckV2
+        block = VajraBottleneckBlock
         hidden_c = int(out_c * 0.5)
         self.in_c = in_c
         self.out_c = out_c
@@ -553,7 +553,7 @@ class VajraV2BottleneckBlock(nn.Module):
         self.kernel_size=kernel_size
         self.bottleneck_pyconv = bottleneck_pyconv
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=1) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, num_blocks=1, shortcut=shortcut, kernel_size=1, expansion_ratio=1) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.add = shortcut and in_c == out_c
         self.cbam = CBAM(out_c)
