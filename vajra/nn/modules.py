@@ -542,18 +542,19 @@ class VajraBottleneckAttentionBlock(nn.Module):
         return f"VajraBottleneckAttentionBlock", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.embed_channels}, {self.num_heads}, {self.guide_channels}]"
 
 class VajraV2BottleneckBlock(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1,bottleneck_pyconv=False) -> None:
+    def __init__(self, in_c, out_c, num_blocks=3, num_bottleneck_blocks=2, shortcut=False, kernel_size=1, bottleneck_pyconv=False) -> None:
         super().__init__()
         block = VajraBottleneckBlock
         hidden_c = int(out_c * 0.5)
         self.in_c = in_c
         self.out_c = out_c
         self.num_blocks=num_blocks
+        self.num_bottleneck_blocks = num_bottleneck_blocks
         self.shortcut=shortcut
         self.kernel_size=kernel_size
         self.bottleneck_pyconv = bottleneck_pyconv
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, num_blocks=1, shortcut=shortcut, kernel_size=1) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, num_blocks=num_bottleneck_blocks, shortcut=shortcut, kernel_size=3) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.add = shortcut and in_c == out_c
         self.cbam = CBAM(out_c)
@@ -566,7 +567,7 @@ class VajraV2BottleneckBlock(nn.Module):
         return cbam + x if self.add else cbam + y
 
     def get_module_info(self):
-        return f"VajraV2BottleneckBlock", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_pyconv}]"
+        return f"VajraV2BottleneckBlock", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.num_bottleneck_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_pyconv}]"
 
 class VajraPyConvBottleneckBlock(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=3, shortcut=False) -> None:
