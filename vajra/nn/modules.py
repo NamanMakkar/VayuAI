@@ -610,21 +610,19 @@ class VajraStemBlock(nn.Module):
         return f"VajraStemBlock", f"[{self.in_c}, {self.hidden_c}, {self.out_c}]"
 
 class VajraV2StemBlock(nn.Module):
-    """Vajra Stem Block with 4 convolutions (2 Convolutions and 1 Residual Bottleneck with 2 convolutions) and 1 MaxPool"""
-
     def __init__(self, in_c, hidden_c, out_c):
         super().__init__()
         self.in_c = in_c
         self.hidden_c = hidden_c
         self.out_c = out_c
         self.conv1 = ConvBNAct(in_c, hidden_c, kernel_size=3, stride=2)
-        self.sppf = FusedMBConvEffNet(in_c=hidden_c, out_c=hidden_c, stride=1, expansion_ratio=1) #SPPF(in_c=hidden_c, out_c=hidden_c) #Bottleneck(hidden_c, hidden_c, True)
+        self.vajra_bottleneck = VajraBottleneckBlock(in_c=hidden_c, out_c=hidden_c, num_blocks=2, shortcut=True)
         self.conv2 = ConvBNAct(hidden_c * 2, hidden_c, kernel_size=3, stride=2)
         self.conv3 = ConvBNAct(hidden_c, out_c, kernel_size=1, stride=1)
 
     def forward(self, x):
         stem = self.conv1(x)
-        branch1 = self.sppf(stem)
+        branch1 = self.vajra_bottleneck(stem)
         join_branches = torch.cat([stem, branch1], dim=1)
         downsample = self.conv2(join_branches)
         out = self.conv3(downsample)
