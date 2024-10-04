@@ -28,7 +28,7 @@ class VajraV2Model(nn.Module):
         super().__init__()
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
         # Backbone
-        self.stem = VajraStemBlock(in_channels, channels_list[0], channels_list[1])
+        self.stem = VajraV2StemBlock(in_channels, channels_list[0], channels_list[1])
         self.vajra_block1 = VajraV2BottleneckBlock(channels_list[1], channels_list[1], num_repeats[0], 1, True, 3, False) # stride 4
         self.pool1 = MaxPool(kernel_size=2, stride=2)
         self.vajra_block2 = VajraV2BottleneckBlock(channels_list[1], channels_list[2], num_repeats[1], 1, True, 3, False) # stride 8
@@ -102,14 +102,14 @@ class VajraV2CLSModel(nn.Module):
                  num_repeats=[3, 6, 6, 3]) -> None:
         super().__init__()
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], -1]
-        self.stem = VajraStemBlock(in_channels, channels_list[0], channels_list[1])
-        self.vajra_block1 = VajraMBConvBlock(channels_list[1], channels_list[1], num_repeats[0], True, 3, True)
+        self.stem = VajraV2StemBlock(in_channels, channels_list[0], channels_list[1])
+        self.vajra_block1 = VajraV2BottleneckBlock(channels_list[1], channels_list[1], num_repeats[0], 1, True, 3, False) # stride 4
         self.pool1 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block2 = VajraMBConvBlock(channels_list[1], channels_list[2], num_repeats[1], True, 3, True)
+        self.vajra_block2 = VajraV2BottleneckBlock(channels_list[1], channels_list[2], num_repeats[1], 1, True, 3, False) # stride 8
         self.pool2 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block3 = VajraMBConvBlock(channels_list[2], channels_list[3], num_repeats[2], True, 3, True)
+        self.vajra_block3 = VajraV2BottleneckBlock(channels_list[2], channels_list[3], num_repeats[2], 1, True, 3, False) # stride 16
         self.pool3 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block4 = VajraMBConvBlock(channels_list[3], channels_list[4], num_repeats[3], True, 3, True)
+        self.vajra_block4 = VajraV2BottleneckBlock(channels_list[3], channels_list[4], num_repeats[3], 1, True, 3, False) # stride 32
         self.pyramid_pool = PyramidalPoolCBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2)
 
     def forward(self, x):

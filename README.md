@@ -17,6 +17,16 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 | VajraV1-medium-det | 640                   |                 | 6.1                        | 2.1                               | 15.11               | 87.8              |
 | VajraV1-large-det | 640                   |                  | 10.0                        | 3.0                               | 27.31               | 180.1             |
 | VajraV1-xlarge-det | 640                   |                 | 14.4                       | 4.0                               | 42.64               | 280.5             |
+| VajraV2-nano-det | 640                   |                 |                            |                                  |                      |        
+               |
+| VajraV2-small-det | 640                   |                 |                            |                                  |                      |        
+               |
+| VajraV2-medium-det | 640                   |                 |                            |                                  |                      |        
+               |
+| VajraV2-large-det | 640                   |                 |                            |                                  |                      |        
+               |
+| VajraV2-xlarge-det | 640                   |                 |                            |                                  |                      |        
+               |
 
 Results to be published soon!
 

@@ -518,9 +518,9 @@ class Trainer:
 
                 resume = True
                 self.args = get_config(checkpoint_args)
-                self.args.model = str(last)
+                self.args.model = self.args.resume = str(last)
 
-                for k in "img_size", "batch":
+                for k in ("img_size", "batch", "device", "close_mosaic"):
                     if k in model_configuration:
                         setattr(self.args, k, model_configuration[k])
 

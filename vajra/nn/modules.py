@@ -617,7 +617,7 @@ class VajraV2StemBlock(nn.Module):
         self.hidden_c = hidden_c
         self.out_c = out_c
         self.conv1 = ConvBNAct(in_c, hidden_c, kernel_size=3, stride=2)
-        self.vajra_bottleneck = VajraBottleneckBlock(in_c=hidden_c, out_c=hidden_c, num_blocks=2, shortcut=True)
+        self.vajra_bottleneck = VajraBottleneckBlock(in_c=hidden_c, out_c=hidden_c, num_blocks=1, shortcut=True, kernel_size=3) #VajraV2BottleneckBlock(in_c=hidden_c, out_c=hidden_c, num_blocks=1, num_bottleneck_blocks=1, shortcut=True, kernel_size=3) #
         self.conv2 = ConvBNAct(hidden_c * 2, hidden_c, kernel_size=3, stride=2)
         self.conv3 = ConvBNAct(hidden_c, out_c, kernel_size=1, stride=1)
 
