@@ -398,6 +398,19 @@ class BottleneckV2(nn.Module):
     def forward(self, x):
         return self.act(x + self.conv2(self.conv1(x))) if self.add else self.act(self.conv2(self.conv1(x)))
 
+class BottleneckV3(nn.Module):
+
+    def __init__(self, in_c, out_c, shortcut=True, kernel_size=3, expansion_ratio=0.5, groups=1, act="silu"):  # ch_in, ch_out, shortcut, groups, kernels, expand
+        super().__init__()
+        hidden_c = int(out_c * expansion_ratio)
+        self.conv1 = ConvBNAct(in_c, hidden_c, kernel_size=kernel_size, stride=1, act=act)
+        self.conv2 = ConvBNAct(hidden_c, hidden_c, kernel_size=kernel_size, stride=1, groups=groups, act=act)
+        self.conv3 = ConvBNAct(hidden_c, hidden_c, kernel_size=kernel_size, stride=1, act=act)
+        self.add = shortcut and in_c == out_c
+
+    def forward(self, x):
+        return x + self.conv3(self.conv2(self.conv1(x))) if self.add else self.conv3(self.conv2(self.conv1(x)))
+
 class BottleneckPyConv(nn.Module):
     def __init__(self, in_c, out_c, shortcut=True, kernel_size=(3, 3), expansion_ratio=0.5, groups=1):  # ch_in, ch_out, shortcut, groups, kernels, expand
         super().__init__()
@@ -542,7 +555,7 @@ class VajraBottleneckAttentionBlock(nn.Module):
         return f"VajraBottleneckAttentionBlock", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.embed_channels}, {self.num_heads}, {self.guide_channels}]"
 
 class VajraV2BottleneckBlock(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=3, num_bottleneck_blocks=2, shortcut=False, kernel_size=1, bottleneck_pyconv=False) -> None:
+    def __init__(self, in_c, out_c, num_blocks=3, num_bottleneck_blocks=2, shortcut=False, kernel_size=1, bottleneck_kernel_size=3) -> None:
         super().__init__()
         block = VajraBottleneckBlock
         hidden_c = int(out_c * 0.5)
@@ -552,9 +565,9 @@ class VajraV2BottleneckBlock(nn.Module):
         self.num_bottleneck_blocks = num_bottleneck_blocks
         self.shortcut=shortcut
         self.kernel_size=kernel_size
-        self.bottleneck_pyconv = bottleneck_pyconv
+        self.bottleneck_kernel_size = bottleneck_kernel_size
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, num_blocks=num_bottleneck_blocks, shortcut=shortcut, kernel_size=3) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, num_blocks=num_bottleneck_blocks, shortcut=shortcut, kernel_size=bottleneck_kernel_size) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.add = shortcut and in_c == out_c
         self.cbam = CBAM(out_c)
@@ -567,7 +580,90 @@ class VajraV2BottleneckBlock(nn.Module):
         return cbam + x if self.add else cbam + y
 
     def get_module_info(self):
-        return f"VajraV2BottleneckBlock", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.num_bottleneck_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_pyconv}]"
+        return f"VajraV2BottleneckBlock", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.num_bottleneck_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_kernel_size}]"
+
+class VajraV3InnerBlock(nn.Module):
+    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, bottleneck_pyconv=False) -> None:
+        super().__init__()
+        block = BottleneckV3
+        hidden_c = int(out_c * 0.5)
+        self.in_c = in_c
+        self.out_c = out_c
+        self.num_blocks=num_blocks
+        self.shortcut=shortcut
+        self.kernel_size=kernel_size
+        self.bottleneck_pyconv = bottleneck_pyconv
+        self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=1.0) for _ in range(num_blocks))
+        self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
+        self.add = shortcut and in_c == out_c
+        self.cbam = CBAM(out_c)
+
+    def forward(self, x):
+        y = [x, self.conv1(x)]
+        y.extend(bottleneck(y[-1]) for bottleneck in self.bottleneck_blocks)
+        y = self.conv2(torch.cat(y, 1))
+        cbam = self.cbam(y)
+        return cbam + x if self.add else cbam + y
+
+    def get_module_info(self):
+        return f"VajraV3InnerBlock", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_pyconv}]"
+
+class VajraV3MidBlock(nn.Module):
+    def __init__(self, in_c, out_c, num_blocks=3, num_bottleneck_blocks=2, shortcut=False, kernel_size=1, bottleneck_kernel_size=3) -> None:
+        super().__init__()
+        block = VajraV3InnerBlock
+        hidden_c = int(out_c * 0.5)
+        self.in_c = in_c
+        self.out_c = out_c
+        self.num_blocks=num_blocks
+        self.num_bottleneck_blocks = num_bottleneck_blocks
+        self.shortcut=shortcut
+        self.kernel_size=kernel_size
+        self.bottleneck_kernel_size = bottleneck_kernel_size
+        self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, num_blocks=num_bottleneck_blocks, shortcut=shortcut, kernel_size=bottleneck_kernel_size) for _ in range(num_blocks))
+        self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
+        self.add = shortcut and in_c == out_c
+        self.cbam = CBAM(out_c)
+
+    def forward(self, x):
+        y = [x, self.conv1(x)]
+        y.extend(bottleneck(y[-1]) for bottleneck in self.bottleneck_blocks)
+        y = self.conv2(torch.cat(y, 1))
+        cbam = self.cbam(y)
+        return cbam + x if self.add else cbam + y
+
+    def get_module_info(self):
+        return f"VajraV2MidBlock", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.num_bottleneck_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_kernel_size}]"
+
+class VajraV3BottleneckBlock(nn.Module):
+    def __init__(self, in_c, out_c, num_blocks=3, num_bottleneck_blocks=3, shortcut=False, kernel_size=1, bottleneck_kernel_size=1) -> None:
+        super().__init__()
+        block = VajraV3MidBlock
+        hidden_c = int(out_c * 0.5)
+        self.in_c = in_c
+        self.out_c = out_c
+        self.num_blocks=num_blocks
+        self.num_bottleneck_blocks = num_bottleneck_blocks
+        self.shortcut=shortcut
+        self.kernel_size=kernel_size
+        self.bottleneck_kernel_size = bottleneck_kernel_size
+        self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, num_blocks=1, num_bottleneck_blocks=num_bottleneck_blocks, shortcut=shortcut, kernel_size=3, bottleneck_kernel_size=bottleneck_kernel_size) for _ in range(num_blocks))
+        self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
+        self.add = shortcut and in_c == out_c
+        self.cbam = CBAM(out_c)
+
+    def forward(self, x):
+        y = [x, self.conv1(x)]
+        y.extend(bottleneck(y[-1]) for bottleneck in self.bottleneck_blocks)
+        y = self.conv2(torch.cat(y, 1))
+        cbam = self.cbam(y)
+        return cbam + x if self.add else cbam + y
+
+    def get_module_info(self):
+        return f"VajraV3BottleneckBlock", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.num_bottleneck_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_kernel_size}]"
 
 class VajraPyConvBottleneckBlock(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=3, shortcut=False) -> None:
@@ -631,6 +727,28 @@ class VajraV2StemBlock(nn.Module):
 
     def get_module_info(self):
         return f"VajraV2StemBlock", f"[{self.in_c}, {self.hidden_c}, {self.out_c}]"
+
+class VajraV3StemBlock(nn.Module):
+    def __init__(self, in_c, hidden_c, out_c):
+        super().__init__()
+        self.in_c = in_c
+        self.hidden_c = hidden_c
+        self.out_c = out_c
+        self.conv1 = ConvBNAct(in_c, hidden_c, kernel_size=3, stride=2)
+        self.vajra_bottleneck = VajraV2BottleneckBlock(in_c=hidden_c, out_c=hidden_c, num_blocks=1, num_bottleneck_blocks=1, shortcut=True, kernel_size=3) #VajraV3InnerBlock(in_c=hidden_c, out_c=hidden_c, num_blocks=1, shortcut=True, kernel_size=3)
+        self.conv2 = ConvBNAct(hidden_c * 2, hidden_c, kernel_size=3, stride=2)
+        self.conv3 = ConvBNAct(hidden_c, out_c, kernel_size=1, stride=1)
+
+    def forward(self, x):
+        stem = self.conv1(x)
+        branch1 = self.vajra_bottleneck(stem)
+        join_branches = torch.cat([stem, branch1], dim=1)
+        downsample = self.conv2(join_branches)
+        out = self.conv3(downsample)
+        return out
+
+    def get_module_info(self):
+        return f"VajraV3StemBlock", f"[{self.in_c}, {self.hidden_c}, {self.out_c}]"
 
 class YOLOBottleneckBlock(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, reduction_ratio=0.5) -> None:
@@ -801,6 +919,71 @@ class VajraDownsample(nn.Module):
         x = self.stem3(x)
         x = self.stem4(x)
         return x
+
+class VajraDownsampleStem(nn.Module):
+    def __init__(self, in_c, mid_c, out_c):
+        super().__init__()
+        self.in_c = in_c
+        self.mid_c = mid_c
+        self.out_c = out_c
+        self.stem1 = ConvBNAct(in_c, mid_c, kernel_size=3, stride=2, act="relu")
+        self.stem2a = ConvBNAct(mid_c, mid_c // 2, kernel_size=2, stride=1, padding=0, act="relu")
+        self.stem2b = ConvBNAct(mid_c // 2, mid_c, kernel_size=2, stride=1, padding=0, act="relu")
+        self.stem3 = ConvBNAct(mid_c * 2, mid_c, kernel_size=3, stride=2, act="relu")
+        self.stem4 = ConvBNAct(mid_c, out_c, kernel_size=1, stride=1, act="relu")
+
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, ceil_mode=False)
+
+        self.pad1 = nn.ConstantPad2d((0, 1, 0, 1), 0)
+        self.pad2 = nn.ConstantPad2d((0, 1, 0, 1), 0)
+
+    def forward(self, x):
+        x = self.stem1(x)
+        x = self.pad1(x)
+        x2 = self.stem2a(x)
+        x2 = self.pad2(x2)
+        x2 = self.stem2b(x2)
+        x1 = self.pool(x)
+        x = torch.cat([x1, x2], dim=1)
+        x = self.stem3(x)
+        x = self.stem4(x)
+        return x
+
+    def get_module_info(self):
+        return f"VajraDownsampleStem", f"[{self.in_c}, {self.mid_c}, {self.out_c}]"
+
+class VajraV2DownsampleStem(nn.Module):
+    def __init__(self, in_c, mid_c, out_c):
+        super().__init__()
+        self.in_c = in_c
+        self.mid_c = mid_c
+        self.out_c = out_c
+        self.stem1 = ConvBNAct(in_c, mid_c, kernel_size=3, stride=2, act="relu")
+        self.stem2a = ConvBNAct(mid_c, mid_c // 2, kernel_size=2, stride=1, padding=0, act="relu")
+        self.stem2b = ConvBNAct(mid_c // 2, mid_c, kernel_size=2, stride=1, padding=0, act="relu")
+        self.stem3 = ConvBNAct(mid_c * 2, mid_c, kernel_size=3, stride=2, act="relu")
+        self.stem4 = ConvBNAct(mid_c, out_c, kernel_size=1, stride=1, act="relu")
+        self.vajra_bottleneck = VajraBottleneckBlock(in_c=mid_c, out_c=mid_c, num_blocks=1, shortcut=True, kernel_size=3)
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, ceil_mode=False)
+
+        self.pad1 = nn.ConstantPad2d((0, 1, 0, 1), 0)
+        self.pad2 = nn.ConstantPad2d((0, 1, 0, 1), 0)
+
+    def forward(self, x):
+        x = self.stem1(x)
+        x = self.pad1(x)
+        x2 = self.stem2a(x)
+        x2 = self.pad2(x2)
+        x2 = self.stem2b(x2)
+        x1 = self.pool(x)
+        x2 = self.vajra_bottleneck(x2)
+        x = torch.cat([x1, x2], dim=1)
+        x = self.stem3(x)
+        x = self.stem4(x)
+        return x
+
+    def get_module_info(self):
+        return f"VajraV2DownsampleStem", f"[{self.in_c}, {self.mid_c}, {self.out_c}]"
 
 class VajraSPPModule(nn.Module):
     def __init__(self, in_c, out_c, kernel_size=5):

@@ -9,6 +9,7 @@ from vajra.utils.downloads import attempt_download_asset
 from vajra.nn.modules import VajraStemBlock, VajraBottleneckBlock, VajraBottleneckAttentionBlock, PyramidalPoolCBAM, Fusion4CBAM, ConvBNAct, MaxPool, ImagePoolingAttention
 from vajra.nn.head import Detection, OBBDetection, Segementation, Classification, PoseDetection, WorldDetection, Panoptic, DEYODetection
 from vajra.nn.vajrav2 import VajraV2Model, VajraV2CLSModel
+from vajra.nn.vajrav3 import VajraV3Model, VajraV3CLSModel
 from vajra.nn.backbones.efficientnets.effnetv2 import build_effnetv2
 from vajra.nn.backbones.efficientnets.effnetv1 import build_effnetv1
 from vajra.nn.backbones.convnexts.build import build_convnext
@@ -209,15 +210,19 @@ def build_vajra(in_channels,
                    "xxlarge": [1.33, 1.25, 512],
                    "xxxlarge": [1.33, 1.5, 512],}
 
+    if version != "v3":
+        num_repeats = [3, 6, 6, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
+    else:
+        num_repeats = [3, 3, 3, 3, 3, 3, 3, 3] if task != "classify" else [3, 3, 3, 3]
+
     depth_mul = config_dict[size][0]
     width_mul = config_dict[size][1]
     num_protos = 256 * width_mul
     max_channels = config_dict[size][2]
     max_channels = make_divisible(max_channels, 8)
     channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256] if task != "classify" else [64, 128, 256, 512, 1024]
-    num_repeats = [3, 6, 6, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
     channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in channels_list]
-    num_repeats = [(max(round(n * depth_mul), 1) if n > 1 else n) for n in num_repeats]\
+    num_repeats = [(max(round(n * depth_mul), 1) if n > 1 else n) for n in num_repeats]
 
     embed_channels = [256, 128, 256, 512]
     embed_channels = [make_divisible(min(ch, max_channels // 2) * width_mul, 8) for ch in embed_channels]
@@ -226,7 +231,13 @@ def build_vajra(in_channels,
 
     if task != "classify":
         if task != "world":
-            model = VajraV1Model(in_channels, channels_list, num_repeats) if version == "v1" else VajraV2Model(in_channels, channels_list, num_repeats)
+            if version == "v1":
+                model = VajraV1Model(in_channels, channels_list, num_repeats)
+            elif version == "v2": 
+                model = VajraV2Model(in_channels, channels_list, num_repeats)
+            elif version == "v3":
+                model = VajraV3Model(in_channels, channels_list, num_repeats)
+
             head_channels = channels_list[-3:]
 
             if task == "detect":
