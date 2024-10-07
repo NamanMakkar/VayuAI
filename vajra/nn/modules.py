@@ -926,11 +926,11 @@ class VajraDownsampleStem(nn.Module):
         self.in_c = in_c
         self.mid_c = mid_c
         self.out_c = out_c
-        self.stem1 = ConvBNAct(in_c, mid_c, kernel_size=3, stride=2, act="relu")
-        self.stem2a = ConvBNAct(mid_c, mid_c // 2, kernel_size=2, stride=1, padding=0, act="relu")
-        self.stem2b = ConvBNAct(mid_c // 2, mid_c, kernel_size=2, stride=1, padding=0, act="relu")
-        self.stem3 = ConvBNAct(mid_c * 2, mid_c, kernel_size=3, stride=2, act="relu")
-        self.stem4 = ConvBNAct(mid_c, out_c, kernel_size=1, stride=1, act="relu")
+        self.stem1 = ConvBNAct(in_c, mid_c, kernel_size=3, stride=2, act="silu")
+        self.stem2a = ConvBNAct(mid_c, mid_c // 2, kernel_size=2, stride=1, padding=0, act="silu")
+        self.stem2b = ConvBNAct(mid_c // 2, mid_c, kernel_size=2, stride=1, padding=0, act="silu")
+        self.stem3 = ConvBNAct(mid_c * 2, mid_c, kernel_size=3, stride=2, act="silu")
+        self.stem4 = ConvBNAct(mid_c, out_c, kernel_size=1, stride=1, act="silu")
 
         self.pool = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, ceil_mode=False)
 

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from pathlib import Path
 from vajra.checks import check_suffix, check_requirements
 from vajra.utils.downloads import attempt_download_asset
-from vajra.nn.modules import VajraStemBlock, VajraV2StemBlock, VajraV2DownsampleStem, VajraBottleneckBlock, VajraMBConvBlock, VajraConvNeXtBlock, PyramidalPoolCBAM, Fusion4CBAM, ConvBNAct, MaxPool, ImagePoolingAttention, VajraWindowAttnBottleneck, VajraV2BottleneckBlock
+from vajra.nn.modules import VajraStemBlock, VajraV2StemBlock, VajraDownsampleStem, VajraBottleneckBlock, VajraMBConvBlock, VajraConvNeXtBlock, PyramidalPoolCBAM, Fusion4CBAM, ConvBNAct, MaxPool, ImagePoolingAttention, VajraWindowAttnBottleneck, VajraV2BottleneckBlock
 from vajra.nn.head import Detection, OBBDetection, Segementation, Classification, PoseDetection, WorldDetection, Panoptic
 from vajra.utils import LOGGER, HYPERPARAMS_CFG_DICT, HYPERPARAMS_CFG_KEYS
 from vajra.utils.torch_utils import model_info, initialize_weights, fuse_conv_and_bn, time_sync, intersect_dicts, scale_img
@@ -28,7 +28,7 @@ class VajraV2Model(nn.Module):
         super().__init__()
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
         # Backbone
-        self.stem = VajraV2StemBlock(in_channels, channels_list[0], channels_list[1])
+        self.stem = VajraDownsampleStem(in_channels, channels_list[0], channels_list[1])
         self.vajra_block1 = VajraV2BottleneckBlock(channels_list[1], channels_list[1], num_repeats[0], 1, True, 3, 3) # stride 4
         self.pool1 = MaxPool(kernel_size=2, stride=2)
         self.vajra_block2 = VajraV2BottleneckBlock(channels_list[1], channels_list[2], num_repeats[1], 1, True, 3, 3) # stride 8
