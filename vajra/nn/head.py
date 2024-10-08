@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.nn.init import xavier_uniform_, constant_ 
 from vajra.tal.anchor_generator import dist2bbox, dist2rbox, generate_anchors
-from vajra.nn.modules import ConvBNAct, DistributedFocalLoss, ProtoMaskModule, UConv, BNContrastiveHead, ContrastiveHead, ImagePoolingAttention
+from vajra.nn.modules import DepthwiseConvBNAct, ConvBNAct, DistributedFocalLoss, ProtoMaskModule, UConv, BNContrastiveHead, ContrastiveHead, ImagePoolingAttention
 from vajra.nn.transformer import ScaleAdaptiveDecoderLayer, ScaleAdaptiveTransformerDecoder, MLP
 from vajra.utils import LOGGER
 from vajra.nn.utils import bias_init_with_prob
@@ -57,12 +57,14 @@ class Detection(nn.Module):
         c2 = max((8, in_channels[0] // 2, self.reg_max * 4))
         c3 = max(in_channels[0], min(self.num_classes, 100))
         self.branch_det = nn.ModuleList(
-            nn.Sequential(ConvBNAct(ch, c2, kernel_size=3, stride=1),
+            nn.Sequential(ConvBNAct(ch, c2, kernel_size=3),
+                          ConvBNAct(c2, c2, kernel_size=3),
                           nn.Conv2d(c2, 4*self.reg_max, 1))
                           for ch in in_channels
         )
         self.branch_cls = nn.ModuleList(
-            nn.Sequential(ConvBNAct(ch, c3, kernel_size=3, stride=1),
+            nn.Sequential(nn.Sequential(DepthwiseConvBNAct(ch, ch, kernel_size=3), ConvBNAct(ch, c3, kernel_size=1)),
+                          nn.Sequential(DepthwiseConvBNAct(c3, c3, kernel_size=3), ConvBNAct(c3, c3, kernel_size=1)),
                           nn.Conv2d(c3, self.num_classes, 1))
                           for ch in in_channels
         )
@@ -76,8 +78,6 @@ class Detection(nn.Module):
 
     def forward(self, x):
         shape = x[0].shape
-        b, c, w, h = shape
-        #LOGGER.info(f"{h, w}\n")
 
         for i in range(self.num_det_layers):
             x[i] = torch.cat((self.branch_det[i](x[i]), self.branch_cls[i](x[i])), 1)

@@ -212,15 +212,16 @@ def build_vajra(in_channels,
 
     if version != "v3":
         num_repeats = [3, 6, 6, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
+        channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256] if task != "classify" else [64, 128, 256, 512, 1024]
     else:
-        num_repeats = [3, 3, 3, 3, 3, 3, 3, 3] if task != "classify" else [3, 3, 3, 3]
+        num_repeats = [3, 3, 3, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
+        channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
 
     depth_mul = config_dict[size][0]
     width_mul = config_dict[size][1]
     num_protos = 256 * width_mul
     max_channels = config_dict[size][2]
     max_channels = make_divisible(max_channels, 8)
-    channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256] if task != "classify" else [64, 128, 256, 512, 1024]
     channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in channels_list]
     num_repeats = [(max(round(n * depth_mul), 1) if n > 1 else n) for n in num_repeats]
 
@@ -238,7 +239,7 @@ def build_vajra(in_channels,
             elif version == "v3":
                 model = VajraV3Model(in_channels, channels_list, num_repeats)
 
-            head_channels = channels_list[-3:]
+            head_channels = [channels_list[8], channels_list[10], channels_list[12]]
 
             if task == "detect":
                 if model_name.split("-")[1] == "deyo":
