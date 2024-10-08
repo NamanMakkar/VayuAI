@@ -62,6 +62,7 @@ class Trainer:
         self.batch_size = self.args.batch
         self.epochs = self.args.epochs
         self.save_period = self.args.save_period
+        self.extend_training = self.args.extend_training
 
         self.start_epoch = 0
         if RANK == -1:
@@ -553,9 +554,9 @@ class Trainer:
                 f"Start a new training without resuming, i.e. 'vajra train model={self.args.model}'"
             )
             LOGGER.info(
-                f"Resuming training from {self.args.model} from epoch {start_epoch + 1} to {self.epochs} total epochs"
+                f"Resuming training for {self.args.model} from epoch {start_epoch + 1} to {self.epochs} total epochs"
             )
-        
+
         if self.epochs < start_epoch:
             LOGGER.info(
                 f"{self.model} has been trained for {checkpoint['epoch']} epochs. Fine-tuning for {self.epochs} more epochs."

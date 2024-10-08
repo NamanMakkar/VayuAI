@@ -51,7 +51,7 @@ class VajraV3Model(nn.Module):
         self.pyramid_pool_neck2 = PyramidalPoolCBAM(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=2)
         self.vajra_neck4 = VajraV3BottleneckBlock(channels_list[11], channels_list[12], num_repeats[7], 1, False, 1, 3)
 
-    """def forward(self, x):
+    def forward(self, x):
         # Backbone
         stem = self.stem(x)
         vajra1 = self.vajra_block1(stem)
@@ -93,9 +93,9 @@ class VajraV3Model(nn.Module):
             vajra_neck4 = vajra_neck4 + vajra4_chunks[1]
 
         outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
-        return outputs"""
+        return outputs
 
-    def forward(self, x):
+    """def forward(self, x):
         # Backbone
         stem = self.stem(x)
         vajra1 = self.vajra_block1(stem)
@@ -124,7 +124,7 @@ class VajraV3Model(nn.Module):
         vajra_neck4 = self.vajra_neck4(pyramid_pool_neck2)
 
         outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
-        return outputs
+        return outputs"""
 
 class VajraV3CLSModel(nn.Module):
     def __init__(self,
