@@ -6,7 +6,7 @@ import torch.nn as nn
 from pathlib import Path
 from vajra.checks import check_suffix, check_requirements
 from vajra.utils.downloads import attempt_download_asset
-from vajra.nn.modules import VajraStemBlock, VajraBottleneckBlock, VajraDownsampleStem, VajraEfficientBottleneckBlock, VajraBottleneckAttentionBlock, PyramidalPoolCBAM, Fusion4CBAM, ConvBNAct, MaxPool, ImagePoolingAttention
+from vajra.nn.modules import VajraStemBlock, VajraBottleneckBlock, VajraDownsampleStem, VajraEfficientBottleneckBlock, VajraBottleneckAttentionBlock, PyramidalPoolCBAM, Fusion4CBAM, Fusion3CBAM, ConvBNAct, MaxPool, ImagePoolingAttention
 from vajra.nn.head import Detection, OBBDetection, Segementation, Classification, PoseDetection, WorldDetection, Panoptic, DEYODetection
 from vajra.nn.vajrav2 import VajraV2Model, VajraV2CLSModel
 from vajra.nn.vajrav3 import VajraV3Model, VajraV3CLSModel
@@ -33,7 +33,7 @@ class VajraV1Model(nn.Module):
                  num_repeats=[3, 6, 6, 3, 3, 3, 3, 3],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [3, 5, -1], [3, 5, -1], -1, [5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
         # Backbone
         self.stem = VajraDownsampleStem(in_channels, channels_list[0], channels_list[1])
         self.vajra_block1 = VajraEfficientBottleneckBlock(channels_list[1], channels_list[1], num_repeats[0], True, 3) # stride 4
@@ -43,19 +43,19 @@ class VajraV1Model(nn.Module):
         self.vajra_block3 = VajraEfficientBottleneckBlock(channels_list[2], channels_list[3], num_repeats[2], True, 3) # stride 16
         self.pool3 = MaxPool(kernel_size=2, stride=2)
         self.vajra_block4 = VajraEfficientBottleneckBlock(channels_list[3], channels_list[4], num_repeats[3], True, 3) # stride 32
-        self.pyramid_pool = PyramidalPoolCBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, use_cbam=False)
+        self.pyramid_pool = PyramidalPoolCBAM(in_c=[channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2)
 
         # Neck
-        self.fusion4cbam = Fusion4CBAM(in_c=channels_list[1:5], out_c=channels_list[5], use_cbam=False)
+        self.fusion3cbam = Fusion3CBAM(in_c=channels_list[2:5], out_c=channels_list[5])
         self.vajra_neck1 = VajraEfficientBottleneckBlock(channels_list[5], channels_list[6], num_repeats[4], False, 1)
 
-        self.fusion4cbam_1 = Fusion4CBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[7], use_cbam=False)
+        self.fusion3cbam2 = Fusion3CBAM(in_c=[channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[7])
         self.vajra_neck2 = VajraEfficientBottleneckBlock(channels_list[7], channels_list[8], num_repeats[5], False, 1)
 
-        self.pyramid_pool_neck1 = PyramidalPoolCBAM(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=2, use_cbam=False)
+        self.pyramid_pool_neck1 = PyramidalPoolCBAM(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=2)
         self.vajra_neck3 = VajraEfficientBottleneckBlock(channels_list[9], channels_list[10], num_repeats[6], False, 1)
 
-        self.pyramid_pool_neck2 = PyramidalPoolCBAM(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=2, use_cbam=False)
+        self.pyramid_pool_neck2 = PyramidalPoolCBAM(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=2)
         self.vajra_neck4 = VajraEfficientBottleneckBlock(channels_list[11], channels_list[12], num_repeats[7], False, 1)
 
     def forward(self, x):
@@ -71,13 +71,13 @@ class VajraV1Model(nn.Module):
 
         pool3 = self.pool3(vajra3)
         vajra4 = self.vajra_block4(pool3)
-        pyramid_pool_backbone = self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
+        pyramid_pool_backbone = self.pyramid_pool([vajra2, vajra3, vajra4])
 
         # Neck
-        fusion4 = self.fusion4cbam([vajra1, vajra2, vajra3, pyramid_pool_backbone])
+        fusion4 = self.fusion3cbam([vajra2, vajra3, pyramid_pool_backbone])
         vajra_neck1 = self.vajra_neck1(fusion4)
 
-        fusion4_2 = self.fusion4cbam_1([vajra1, vajra3, vajra2, vajra_neck1])
+        fusion4_2 = self.fusion3cbam2([vajra3, vajra2, vajra_neck1])
         vajra_neck2 = self.vajra_neck2(fusion4_2)
 
         pyramid_pool_neck1 = self.pyramid_pool_neck1([pyramid_pool_backbone, vajra_neck1, vajra_neck2])
@@ -223,7 +223,7 @@ def build_vajra(in_channels,
         #num_repeats = [3, 3, 3, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
         #channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
     
-    num_repeats = [3, 3, 3, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
+    num_repeats = [3, 6, 6, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
     channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
     channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in channels_list]
     num_repeats = [(max(round(n * depth_mul), 1) if n > 1 else n) for n in num_repeats]

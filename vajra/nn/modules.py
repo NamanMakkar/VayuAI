@@ -867,24 +867,28 @@ class SEBlock(nn.Module):
         return out
 
 class Fusion3CBAM(nn.Module):
-    def __init__(self, in_c, out_c) -> None:
+    def __init__(self, in_c, out_c, use_cbam=True) -> None:
         super().__init__()
+        self.in_c = in_c
+        self.out_c = out_c
+        self.use_cbam = use_cbam
         total_c = sum(in_c)
         self.conv_fused = ConvBNAct(total_c, out_c, 1, 1)
-        self.cbam = CBAM(out_c)
-        self.downsample = nn.functional.adaptive_avg_pool2d
+        self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
 
     def forward(self, x):
         _, _, H, W = x[1].shape
-        output_size = [int(H), int(W)]
 
-        x0 = self.downsample(x[0], output_size)
+        x0 = F.interpolate(x[0], size=(H, W), mode="nearest")
         x1 = x[1]
-        x2 = F.interpolate(x[2], size=(H, W), mode='bilinear', align_corners=False)
+        x2 = F.interpolate(x[2], size=(H, W), mode='nearest')
         concatenated_oup = torch.cat((x0, x1, x2), dim=1)
         fused = self.conv_fused(concatenated_oup)
         cbam = self.cbam(fused)
-        return fused + cbam
+        return fused + cbam if self.use_cbam else fused
+
+    def get_module_info(self):
+        return f"Fusion3CBAM", f"[{self.in_c}, {self.out_c}, {self.use_cbam}]"
 
 class Fusion4CBAM(nn.Module):
     def __init__(self, in_c, out_c, use_cbam=True) -> None:
@@ -908,7 +912,7 @@ class Fusion4CBAM(nn.Module):
         return fused + cbam if self.use_cbam else fused
 
     def get_module_info(self):
-        return f"Fusion4CBAM", f"[{self.in_c}, {self.out_c}]"
+        return f"Fusion4CBAM", f"[{self.in_c}, {self.out_c}, {self.use_cbam}]"
 
 class PyramidalPoolCBAM(nn.Module):
     def __init__(self, in_c, out_c, stride=2, use_cbam=True) -> None:
