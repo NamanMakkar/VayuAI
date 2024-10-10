@@ -77,6 +77,9 @@ class Compose:
         """Appends a new transform to the existing list of transforms."""
         self.transforms.append(transform)
 
+    def insert(self, index, transform):
+        self.transforms.insert(index, transform)
+
     def tolist(self):
         """Converts the list of transforms to a standard Python list."""
         return self.transforms
@@ -743,7 +746,75 @@ class LetterBox:
         labels["instances"].add_padding(padw, padh)
         return labels
 
-class CopyPaste:
+class CopyPaste(BaseMixTransform):
+    def __init__(self, dataset=None, pre_transform=None, p=0.5, mode="flip") -> None:
+        super().__init__(dataset=dataset, pre_transform=pre_transform, p=p)
+        assert mode in {"flip", "mixup"}, f"Expected `mode` to be `flip` or `mixup`, but got {mode}"
+        self.mode = mode
+
+    def get_indexes(self):
+        return random.randint(0, len(self.dataset) - 1)
+
+    def _mix_transform(self, labels):
+        labels2 = labels["mix_labels"][0]
+        return self._transform(labels, labels2)
+
+    def __call__(self, labels):
+        if len(labels["instances"].segments) == 0 or self.p == 0:
+            return labels
+        if self.mode == "flip":
+            return self._transform(labels)
+
+        indexes = self.get_indexes()
+
+        if isinstance(indexes, int):
+            indexes = [indexes]
+
+        mix_labels = [self.dataset.get_image_and_label(i) for i in indexes]
+
+        if self.pre_transform is not None:
+            for i, data in enumerate(mix_labels):
+                mix_labels[i] = self.pre_transform(data)
+        labels["mix_labels"] = mix_labels
+        labels = self._update_label_text(labels)
+        labels = self._mix_transform(labels)
+        labels.pop("mix_labels", None)
+        return labels
+
+    def _transform(self, labels1, labels2={}):
+        img = labels1["img"]
+        cls = labels1["cls"]
+        h, w = img.shape[:2]
+        instances = labels1.pop("instances")
+        instances.convert_bbox(format="xyxy")
+        instances.denormalize(w, h)
+
+        img_new = np.zeros(img.shape, np.uint8)
+        instances2 = labels2.pop("instances", None)
+        if instances2 is None:
+            instances2 = deepcopy(instances)
+            instances2.fliplr(w)
+        ioa = bbox_ioa(instances2.bboxes, instances.bboxes)
+        indexes = np.nonzero((ioa < 0.30).all(1))[0]
+        n = len(indexes)
+        sorted_idx = np.argsort(ioa.max(1)[indexes])
+        indexes = indexes[sorted_idx]
+
+        for j in indexes[: round(self.p * n)]:
+            cls = np.concatenate((cls, labels2.get("cls", cls)[[j]]), axis=0)
+            instances = Instances2d.concatenate((instances, instances2[[j]]), axis=0)
+            cv2.drawContours(img_new, instances2.segments[[j]].astype(np.int32), -1, (1, 1, 1), cv2.FILLED)
+
+        result = labels2.get("img", cv2.flip(img, 1))
+        i = img_new.astype(bool)
+        img[i] = result[i]
+
+        labels1["img"] = img
+        labels1["cls"] = cls
+        labels1["instances"] = instances
+        return labels1
+
+'''class CopyPaste:
     """
     Implements the Copy-Paste augmentation as described in the paper https://arxiv.org/abs/2012.07177. This class is
     responsible for applying the Copy-Paste augmentation on images and their corresponding instances.
@@ -806,7 +877,7 @@ class CopyPaste:
         labels["img"] = im
         labels["cls"] = cls
         labels["instances"] = instances
-        return labels
+        return labels'''
 
 class Albumentations:
     """
@@ -1016,21 +1087,29 @@ class Format:
 
 def vajra_transforms(dataset, imgsz, hyp, stretch=False):
     """Convert images to a size suitable for YOLOv8 training."""
-    pre_transform = Compose(
-        [
-            Mosaic(dataset, imgsz=imgsz, p=hyp.mosaic),
-            CopyPaste(p=hyp.copy_paste),
-            RandomPerspective(
-                degrees=hyp.degrees,
-                translate=hyp.translate,
-                scale=hyp.scale,
-                shear=hyp.shear,
-                perspective=hyp.perspective,
-                pre_transform=None if stretch else LetterBox(new_shape=(imgsz, imgsz)),
-            ),
-        ]
+    mosaic = Mosaic(dataset, imgsz=imgsz, p=hyp.mosaic)
+    affine = RandomPerspective(
+        degrees=hyp.degrees,
+        translate=hyp.translate,
+        scale=hyp.scale,
+        shear=hyp.shear,
+        perspective=hyp.perspective,
+        pre_transform=None if stretch else LetterBox(new_shape=(imgsz, imgsz)),
     )
-    flip_idx = dataset.data.get("flip_idx", [])  # for keypoints augmentation
+
+    pre_transform = Compose([mosaic, affine])
+    if hyp.copy_paste_mode == "flip":
+        pre_transform.insert(1, CopyPaste(p=hyp.copy_paste, mode=hyp.copy_paste_mode))
+    else:
+        pre_transform.append(
+            CopyPaste(
+                dataset,
+                pre_transform=Compose([Mosaic(dataset, imgsz=imgsz, p=hyp.mosaic), affine]),
+                p=hyp.copy_paste,
+                mode=hyp.copy_paste_mode,
+            )
+        )
+    flip_idx = dataset.data.get("flip_idx", [])
     if dataset.use_keypoints:
         kpt_shape = dataset.data.get("kpt_shape", None)
         if len(flip_idx) == 0 and hyp.fliplr > 0.0:
@@ -1048,9 +1127,8 @@ def vajra_transforms(dataset, imgsz, hyp, stretch=False):
             RandomFlip(direction="vertical", p=hyp.flipud),
             RandomFlip(direction="horizontal", p=hyp.fliplr, flip_idx=flip_idx),
         ]
-    )  # transforms
+    )
 
-# Classification augmentations -----------------------------------------------------------------------------------------
 def classify_transforms(
     size=224,
     mean=DEFAULT_MEAN,
