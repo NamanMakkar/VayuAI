@@ -43,19 +43,19 @@ class VajraV1Model(nn.Module):
         self.vajra_block3 = VajraEfficientBottleneckBlock(channels_list[2], channels_list[3], num_repeats[2], True, 3) # stride 16
         self.pool3 = MaxPool(kernel_size=2, stride=2)
         self.vajra_block4 = VajraEfficientBottleneckBlock(channels_list[3], channels_list[4], num_repeats[3], True, 3) # stride 32
-        self.pyramid_pool = PyramidalPoolCBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2)
+        self.pyramid_pool = PyramidalPoolCBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, use_cbam=False)
 
         # Neck
-        self.fusion4cbam = Fusion4CBAM(in_c=channels_list[1:5], out_c=channels_list[5])
+        self.fusion4cbam = Fusion4CBAM(in_c=channels_list[1:5], out_c=channels_list[5], use_cbam=False)
         self.vajra_neck1 = VajraEfficientBottleneckBlock(channels_list[5], channels_list[6], num_repeats[4], False, 1)
 
-        self.fusion4cbam_1 = Fusion4CBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[7])
+        self.fusion4cbam_1 = Fusion4CBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[7], use_cbam=False)
         self.vajra_neck2 = VajraEfficientBottleneckBlock(channels_list[7], channels_list[8], num_repeats[5], False, 1)
 
-        self.pyramid_pool_neck1 = PyramidalPoolCBAM(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=2)
+        self.pyramid_pool_neck1 = PyramidalPoolCBAM(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=2, use_cbam=False)
         self.vajra_neck3 = VajraEfficientBottleneckBlock(channels_list[9], channels_list[10], num_repeats[6], False, 1)
 
-        self.pyramid_pool_neck2 = PyramidalPoolCBAM(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=2)
+        self.pyramid_pool_neck2 = PyramidalPoolCBAM(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=2, use_cbam=False)
         self.vajra_neck4 = VajraEfficientBottleneckBlock(channels_list[11], channels_list[12], num_repeats[7], False, 1)
 
     def forward(self, x):
@@ -107,7 +107,7 @@ class VajraV1WorldModel(nn.Module):
         self.vajra_block3 = VajraEfficientBottleneckBlock(channels_list[2], channels_list[3], num_repeats[2], True, 3) # stride 16
         self.pool3 = MaxPool(kernel_size=2, stride=2)
         self.vajra_block4 = VajraEfficientBottleneckBlock(channels_list[3], channels_list[4], num_repeats[3], True, 3) # stride 32
-        self.pyramid_pool = PyramidalPoolCBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2)
+        self.pyramid_pool = PyramidalPoolCBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, use_cbam=False)
 
         # Neck
         self.fusion4cbam = Fusion4CBAM(in_c=channels_list[1:5], out_c=channels_list[5])
@@ -116,10 +116,10 @@ class VajraV1WorldModel(nn.Module):
         self.fusion4cbam_1 = Fusion4CBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[7])
         self.vajra_neck2 = VajraBottleneckAttentionBlock(channels_list[7], channels_list[8], num_repeats[5], False, 1, embed_channels=embed_channels[1], num_heads=num_heads[1])
 
-        self.pyramid_pool_neck1 = PyramidalPoolCBAM(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=2)
+        self.pyramid_pool_neck1 = PyramidalPoolCBAM(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=2, use_cbam=False)
         self.vajra_neck3 = VajraBottleneckAttentionBlock(channels_list[9], channels_list[10], num_repeats[6], False, 1, embed_channels=embed_channels[2], num_heads=num_heads[2])
 
-        self.pyramid_pool_neck2 = PyramidalPoolCBAM(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=2)
+        self.pyramid_pool_neck2 = PyramidalPoolCBAM(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=2, use_cbam=False)
         self.vajra_neck4 = VajraBottleneckAttentionBlock(channels_list[11], channels_list[12], num_repeats[7], False, 1, embed_channels=embed_channels[3], num_heads=num_heads[3])
 
     def forward(self, x):

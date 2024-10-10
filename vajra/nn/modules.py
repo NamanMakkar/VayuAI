@@ -887,13 +887,14 @@ class Fusion3CBAM(nn.Module):
         return fused + cbam
 
 class Fusion4CBAM(nn.Module):
-    def __init__(self, in_c, out_c) -> None:
+    def __init__(self, in_c, out_c, use_cbam=True) -> None:
         super().__init__()
         self.in_c = in_c
         self.out_c = out_c
         total_c = sum(in_c)
         self.conv_fused = ConvBNAct(total_c, self.out_c, 1, 1)
-        self.cbam = CBAM(out_c)
+        self.use_cbam = use_cbam
+        self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
 
     def forward(self, x):
         _, _, H, W = x[2].shape
@@ -904,7 +905,7 @@ class Fusion4CBAM(nn.Module):
         concatenated_oup = torch.cat((x0, x1, x2, x3), dim=1)
         fused = self.conv_fused(concatenated_oup)
         cbam = self.cbam(fused)
-        return fused + cbam
+        return fused + cbam if self.use_cbam else fused
 
     def get_module_info(self):
         return f"Fusion4CBAM", f"[{self.in_c}, {self.out_c}]"
