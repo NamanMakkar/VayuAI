@@ -527,12 +527,12 @@ class InnerBlock(nn.Module):
         super().__init__()
         hidden_c = int(out_c * 0.5)
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, 1)
-        self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
+        self.conv2 = ConvBNAct((num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.bottleneck_blocks = nn.ModuleList(Bottleneck(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=1.0) for _ in range(num_blocks))
         self.add = shortcut and in_c == out_c
     
     def forward(self, x):
-        y = [x, self.conv1(x)]
+        y = [self.conv1(x)]
         y.extend(bottleneck(y[-1]) for bottleneck in self.bottleneck_blocks)
         y = self.conv2(torch.cat(y, 1))
         return y + x if self.add else y
