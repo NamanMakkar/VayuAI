@@ -203,13 +203,12 @@ def build_vajra(in_channels,
             ):
     
     stride = torch.tensor([8., 16., 32.])
-    config_dict = {"nano": [0.33, 0.25, 1024], 
-                   "small": [0.33, 0.5, 1024], 
-                   "medium": [0.67, 0.75, 768], 
+    config_dict = {"nano": [0.5, 0.25, 1024], 
+                   "small": [0.5, 0.5, 1024], 
+                   "medium": [0.5, 1.0, 512], 
                    "large": [1.0, 1.0, 512], 
-                   "xlarge": [1.0, 1.25, 512],
-                   "xxlarge": [1.33, 1.25, 512],
-                   "xxxlarge": [1.33, 1.5, 512],}
+                   "xlarge": [1.0, 1.5, 512],
+                }
     depth_mul = config_dict[size][0]
     width_mul = config_dict[size][1]
     num_protos = 256 * width_mul
@@ -223,7 +222,7 @@ def build_vajra(in_channels,
         #num_repeats = [3, 3, 3, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
         #channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
     
-    num_repeats = [3, 3, 3, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
+    num_repeats = [2, 2, 2, 2, 2, 2, 2, 2] if task != "classify" else [2, 2, 2, 2]
     channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
     channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in channels_list]
     num_repeats = [(max(round(n * depth_mul), 1) if n > 1 else n) for n in num_repeats]
