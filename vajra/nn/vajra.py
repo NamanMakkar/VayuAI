@@ -33,7 +33,7 @@ class VajraV1Model(nn.Module):
                  num_repeats=[3, 6, 6, 3, 3, 3, 3, 3],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [3, 5, -1], [3, 5, -1], -1, [5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
         # Backbone
         self.stem = VajraDownsampleStem(in_channels, channels_list[0], channels_list[1])
         self.vajra_block1 = VajraEfficientBottleneckBlock(channels_list[1], channels_list[1], num_repeats[0], True, 3) # stride 4
@@ -43,13 +43,13 @@ class VajraV1Model(nn.Module):
         self.vajra_block3 = VajraEfficientBottleneckBlock(channels_list[2], channels_list[3], num_repeats[2], True, 3) # stride 16
         self.pool3 = MaxPool(kernel_size=2, stride=2)
         self.vajra_block4 = VajraEfficientBottleneckBlock(channels_list[3], channels_list[4], num_repeats[3], True, 3) # stride 32
-        self.pyramid_pool = PyramidalPoolCBAM(in_c=[channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2)
+        self.pyramid_pool = PyramidalPoolCBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2)
 
         # Neck
-        self.fusion3cbam = Fusion3CBAM(in_c=channels_list[2:5], out_c=channels_list[5])
+        self.fusion4cbam = Fusion4CBAM(in_c=channels_list[1:5], out_c=channels_list[5])
         self.vajra_neck1 = VajraEfficientBottleneckBlock(channels_list[5], channels_list[6], num_repeats[4], False, 1)
 
-        self.fusion3cbam2 = Fusion3CBAM(in_c=[channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[7])
+        self.fusion4cbam2 = Fusion4CBAM(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[7])
         self.vajra_neck2 = VajraEfficientBottleneckBlock(channels_list[7], channels_list[8], num_repeats[5], False, 1)
 
         self.pyramid_pool_neck1 = PyramidalPoolCBAM(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=2)
@@ -71,13 +71,13 @@ class VajraV1Model(nn.Module):
 
         pool3 = self.pool3(vajra3)
         vajra4 = self.vajra_block4(pool3)
-        pyramid_pool_backbone = self.pyramid_pool([vajra2, vajra3, vajra4])
+        pyramid_pool_backbone = self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
 
         # Neck
-        fusion4 = self.fusion3cbam([vajra2, vajra3, pyramid_pool_backbone])
+        fusion4 = self.fusion4cbam([vajra1, vajra2, vajra3, pyramid_pool_backbone])
         vajra_neck1 = self.vajra_neck1(fusion4)
 
-        fusion4_2 = self.fusion3cbam2([vajra3, vajra2, vajra_neck1])
+        fusion4_2 = self.fusion4cbam2([vajra1, vajra3, vajra2, vajra_neck1])
         vajra_neck2 = self.vajra_neck2(fusion4_2)
 
         pyramid_pool_neck1 = self.pyramid_pool_neck1([pyramid_pool_backbone, vajra_neck1, vajra_neck2])
