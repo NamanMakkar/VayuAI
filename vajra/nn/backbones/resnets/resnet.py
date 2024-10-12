@@ -3,7 +3,7 @@
 import math
 import torch
 import torch.nn as nn
-from vajra.nn.modules import BasicBlock, BottleneckResNet, Linear, ConvBNAct, PyramidalPoolCBAM, Fusion4CBAM, VajraBottleneckBlock, MaxPool, AdaptiveAvgPool2D
+from vajra.nn.modules import BasicBlock, BottleneckResNet, Linear, ConvBNAct, Sanlayan, ChatushtayaSanlayan, VajraMerudandaBhag1, MaxPool, AdaptiveAvgPool2D
 from vajra.nn.head import Classification, Detection, PoseDetection, OBBDetection, Segementation
 from vajra.utils import LOGGER
 from vajra.ops import make_divisible

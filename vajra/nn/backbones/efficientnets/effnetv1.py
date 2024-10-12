@@ -3,7 +3,7 @@
 import math
 import torch
 import torch.nn as nn
-from vajra.nn.modules import MBConvEffNet, ConvBNAct, PyramidalPoolCBAM, Fusion4CBAM, VajraBottleneckBlock
+from vajra.nn.modules import MBConvEffNet, ConvBNAct, Sanlayan, ChatushtayaSanlayan, VajraMerudandaBhag1
 from vajra.nn.head import Detection, Segementation, OBBDetection, PoseDetection, Panoptic
 from vajra.utils import LOGGER
 from vajra.ops import make_divisible
@@ -65,19 +65,19 @@ class VajraEffNetV1(nn.Module):
         self.blocks5 = nn.ModuleList(MBConvEffNet(in_c=self.channels_list[3] if i==0 else self.channels_list[4], out_c=self.channels_list[4], stride=strides[4] if i==0 else 1, expansion_ratio=expansion_ratios[4], kernel_size=kernel_sizes[4]) for i in range(self.num_repeats[4]))
         self.blocks6 = nn.ModuleList(MBConvEffNet(in_c=self.channels_list[4] if i==0 else self.channels_list[5], out_c=self.channels_list[5], stride=strides[5] if i==0 else 1, expansion_ratio=expansion_ratios[5], kernel_size=kernel_sizes[5]) for i in range(self.num_repeats[5]))
         self.blocks7 = nn.ModuleList(MBConvEffNet(in_c=self.channels_list[5] if i==0 else self.channels_list[6], out_c=self.channels_list[6], stride=strides[6] if i==0 else 1, expansion_ratio=expansion_ratios[6], kernel_size=kernel_sizes[6]) for i in range(self.num_repeats[6]))
-        self.pyramidal_pool_cbam = PyramidalPoolCBAM(in_c=self.channels_list[3:], out_c=self.channels_list[6], stride=2)
+        self.pyramidal_pool_cbam = Sanlayan(in_c=self.channels_list[3:], out_c=self.channels_list[6], stride=2)
         
-        self.fusion4cbam = Fusion4CBAM(in_c=self.channels_list[3:], out_c=self.neck_channels_list[0])
-        self.vajra_neck1 = VajraBottleneckBlock(in_c=self.neck_channels_list[0], out_c=self.neck_channels_list[1], num_blocks=self.num_neck_repeats[0], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
+        self.fusion4cbam = ChatushtayaSanlayan(in_c=self.channels_list[3:], out_c=self.neck_channels_list[0])
+        self.vajra_neck1 = VajraMerudandaBhag1(in_c=self.neck_channels_list[0], out_c=self.neck_channels_list[1], num_blocks=self.num_neck_repeats[0], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
 
-        self.fusion4cbam_1 = Fusion4CBAM(in_c=[self.channels_list[4], self.channels_list[5], self.channels_list[3], self.neck_channels_list[1]], out_c=self.neck_channels_list[2])
-        self.vajra_neck2 = VajraBottleneckBlock(in_c=self.neck_channels_list[2], out_c=self.neck_channels_list[3], num_blocks=self.num_neck_repeats[1], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
+        self.fusion4cbam_1 = ChatushtayaSanlayan(in_c=[self.channels_list[4], self.channels_list[5], self.channels_list[3], self.neck_channels_list[1]], out_c=self.neck_channels_list[2])
+        self.vajra_neck2 = VajraMerudandaBhag1(in_c=self.neck_channels_list[2], out_c=self.neck_channels_list[3], num_blocks=self.num_neck_repeats[1], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
 
-        self.pyramidal_pool_neck = PyramidalPoolCBAM(in_c=[self.channels_list[6], self.neck_channels_list[1], self.neck_channels_list[3]], out_c=self.neck_channels_list[4], stride=2)
-        self.vajra_neck3 = VajraBottleneckBlock(in_c=self.neck_channels_list[4], out_c=self.neck_channels_list[5], num_blocks=self.num_neck_repeats[2], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
+        self.pyramidal_pool_neck = Sanlayan(in_c=[self.channels_list[6], self.neck_channels_list[1], self.neck_channels_list[3]], out_c=self.neck_channels_list[4], stride=2)
+        self.vajra_neck3 = VajraMerudandaBhag1(in_c=self.neck_channels_list[4], out_c=self.neck_channels_list[5], num_blocks=self.num_neck_repeats[2], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
 
-        self.pyramidal_pool_neck_1 = PyramidalPoolCBAM(in_c=[self.neck_channels_list[1], self.neck_channels_list[3], self.neck_channels_list[5]], out_c=self.neck_channels_list[6], stride=2)
-        self.vajra_neck4 = VajraBottleneckBlock(in_c=self.neck_channels_list[6], out_c=self.neck_channels_list[7], num_blocks=self.num_neck_repeats[3], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
+        self.pyramidal_pool_neck_1 = Sanlayan(in_c=[self.neck_channels_list[1], self.neck_channels_list[3], self.neck_channels_list[5]], out_c=self.neck_channels_list[6], stride=2)
+        self.vajra_neck4 = VajraMerudandaBhag1(in_c=self.neck_channels_list[6], out_c=self.neck_channels_list[7], num_blocks=self.num_neck_repeats[3], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
 
     def forward(self, x):
         x = self.conv1(x)

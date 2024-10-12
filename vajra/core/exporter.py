@@ -18,7 +18,7 @@ from vajra.configs import get_config
 from vajra.dataset.dataset import VajraDetDataset
 from vajra.dataset.build import build_dataloader
 from vajra.dataset.utils import check_det_dataset, check_cls_dataset, check_class_names, default_class_names
-from vajra.nn.modules import VajraBottleneckBlock
+from vajra.nn.modules import VajraMerudandaBhag1
 from vajra.nn.head import Detection
 from vajra.nn.vajra import DetectionModel, SegmentationModel, VajraWorld
 from vajra.utils import (
