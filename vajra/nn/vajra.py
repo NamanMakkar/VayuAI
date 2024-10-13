@@ -46,8 +46,8 @@ class VajraV1Model(nn.Module):
         self.pyramid_pool = Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, expansion_ratio=1.0)
 
         # Neck
-        self.fusion4cbam = ChatushtayaSanlayan(in_c=channels_list[1:5], out_c=channels_list[6], expansion_ratio=0.25)
-        self.vajra_neck1 = VajraGrivaBhag1(channels_list[6], num_repeats[4], 1, 0.25) #VajraEfficientBottleneckBlock(channels_list[5], channels_list[6], num_repeats[4], False, 1)
+        self.fusion4cbam = ChatushtayaSanlayan(in_c=channels_list[1:5], out_c=channels_list[6], expansion_ratio=0.5)
+        self.vajra_neck1 = VajraGrivaBhag1(channels_list[6], num_repeats[4], 1, 0.5) #VajraEfficientBottleneckBlock(channels_list[5], channels_list[6], num_repeats[4], False, 1)
 
         self.fusion4cbam2 = ChatushtayaSanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[8], expansion_ratio=0.5)
         self.vajra_neck2 = VajraGrivaBhag1(channels_list[8], num_repeats[5], 1, 0.5) #VajraEfficientBottleneckBlock(channels_list[7], channels_list[8], num_repeats[5], False, 1)
