@@ -36,9 +36,9 @@ class VajraV1Model(nn.Module):
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
         # Backbone
         self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
-        self.vajra_block1 = VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3, False) #VajraEfficientBottleneckBlock(channels_list[1], channels_list[1], num_repeats[0], True, 3) # stride 4
+        self.vajra_block1 = VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3, False, 0.25) #VajraEfficientBottleneckBlock(channels_list[1], channels_list[1], num_repeats[0], True, 3) # stride 4
         self.pool1 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block2 = VajraMerudandaBhag1(channels_list[1], channels_list[2], num_repeats[1], True, 3, False) #VajraEfficientBottleneckBlock(channels_list[1], channels_list[2], num_repeats[1], True, 3) # stride 8
+        self.vajra_block2 = VajraMerudandaBhag1(channels_list[1], channels_list[2], num_repeats[1], True, 3, False, 0.25) #VajraEfficientBottleneckBlock(channels_list[1], channels_list[2], num_repeats[1], True, 3) # stride 8
         self.pool2 = MaxPool(kernel_size=2, stride=2)
         self.vajra_block3 = VajraMerudandaBhag2(channels_list[2], channels_list[3], num_repeats[2], True, 3) # stride 16
         self.pool3 = MaxPool(kernel_size=2, stride=2)
@@ -56,7 +56,7 @@ class VajraV1Model(nn.Module):
         self.vajra_neck3 = VajraGrivaBhag1(channels_list[10], num_repeats[6], 1, 0.5) #VajraEfficientBottleneckBlock(channels_list[9], channels_list[10], num_repeats[6], False, 1)
 
         self.pyramid_pool_neck2 = Sanlayan(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[12], stride=2, expansion_ratio=0.5)
-        self.vajra_neck4 = VajraGrivaBhag1(channels_list[12], num_repeats[7], 1)
+        self.vajra_neck4 = VajraGrivaBhag2(channels_list[12], num_repeats[7], 1)
 
     def forward(self, x):
         # Backbone
@@ -210,7 +210,7 @@ def build_vajra(in_channels,
                    "small": [0.5, 0.5, 1024], 
                    "medium": [0.5, 1.0, 512], 
                    "large": [1.0, 1.0, 512], 
-                   "xlarge": [1.0, 1.25, 512],
+                   "xlarge": [1.0, 1.5, 512],
                 }
     depth_mul = config_dict[size][0]
     width_mul = config_dict[size][1]
@@ -226,7 +226,7 @@ def build_vajra(in_channels,
         #channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
     
     num_repeats = [2, 2, 2, 2, 2, 2, 2, 2] if task != "classify" else [2, 2, 2, 2]
-    channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
+    channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 256, 256, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
     channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in channels_list]
     num_repeats = [(max(round(n * depth_mul), 1) if n > 1 else n) for n in num_repeats]
 
