@@ -1940,33 +1940,52 @@ class WindowMultiHeadAttention(nn.Module):
         
 
 class Attention(nn.Module):
-    def __init__(self, dim, window_size, num_heads):
+    def __init__(self, dim, num_heads=8):
         super().__init__()
         self.dim = dim
-        self.window_size = window_size
         self.num_heads = num_heads
-        self.scale = (dim // num_heads) ** -0.5
+        self.head_dim = dim // num_heads
+        self.key_dim = int(self.head_dim * 0.5)
+        self.scale = self.key_dim ** -0.5
+        nh_kd = self.key_dim * num_heads
+        h = dim + nh_kd * 2
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=False)
-        self.attn_drop = nn.Dropout(0.1)
-        self.proj = nn.Linear(dim, dim)
-        self.proj_drop = nn.Dropout(0.1)
+        self.qkv = ConvBNAct(dim, h, kernel_size=1, act=None)
+        self.proj = ConvBNAct(dim, dim, kernel_size=1, act=None)
+        self.positional_encoding = ConvBNAct(dim, dim, kernel_size=3, groups=dim, act=None)
 
     def forward(self, x):
-        B, N, C = x.shape  # Batch, Num Patches, Channels
-        qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads)
-        q, k, v = qkv[:, :, 0], qkv[:, :, 1], qkv[:, :, 2]
+        B, C, H, W = x.shape
+        N = H * W
+        qkv = self.qkv(x).view(B, self.num_heads, self.key_dim * 2 + self.head_dim, N)
+        q, k, v = qkv.split([self.key_dim, self.key_dim, self.head_dim], dim=2) #qkv[:, :, 0], qkv[:, :, 1], qkv[:, :, 2]
 
         # Attention scores
-        attn = (q @ k.transpose(-2, -1)) * self.scale
+        attn = (q.transpose(-2, -1) @ k) * self.scale
         attn = F.softmax(attn, dim=-1)
-        attn = self.attn_drop(attn)
 
         # Apply attention to values
-        x = (attn @ v).transpose(1, 2).reshape(B, N, C)
+        x = (v @ attn.transpose(-2, -1)).view(B, C, H, W) + self.positional_encoding(v.reshape(B, C, H, W))
         x = self.proj(x)
-        x = self.proj_drop(x)
         return x
+    
+class AttentionBlock(nn.Module):
+    def __init__(self, in_c, out_c, num_heads=8, shortcut=True) -> None:
+        super().__init__()
+        self.in_c = in_c
+        self.out_c = out_c
+        self.num_heads = num_heads
+        self.attn = Attention(in_c, num_heads=num_heads)
+        self.pw = Conv(in_c, out_c, 1, 1)
+        self.add = shortcut
+
+    def forward(self, x):
+        x = x + self.attn(x) if self.add else self.attn(x)
+        x = self.pw(x)
+        return x
+    
+    def get_module_info(self):
+        return f"AttentionBlock", f"[{self.in_c}, {self.out_c}, {self.num_heads}, {self.add}]"
 
 class VajraV2Block(nn.Module):
     def __init__(self, dim) -> None:
