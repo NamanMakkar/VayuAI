@@ -56,7 +56,7 @@ class VajraV1Model(nn.Module):
         self.vajra_neck3 = VajraGrivaBhag1(channels_list[10], num_repeats[6], 1, 0.5) #VajraEfficientBottleneckBlock(channels_list[9], channels_list[10], num_repeats[6], False, 1)
 
         self.pyramid_pool_neck2 = Sanlayan(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[12], stride=2, expansion_ratio=0.5)
-        self.vajra_neck4 = VajraGrivaBhag2(channels_list[12], num_repeats[7], 1)
+        self.vajra_neck4 = VajraGrivaBhag1(channels_list[12], num_repeats[7], 1)
 
     def forward(self, x):
         # Backbone
