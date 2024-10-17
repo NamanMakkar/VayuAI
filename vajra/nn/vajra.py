@@ -210,7 +210,7 @@ def build_vajra(in_channels,
                    "small": [0.33, 0.5, 1024], 
                    "medium": [0.67, 1.0, 512], 
                    "large": [1.0, 1.0, 512], 
-                   "xlarge": [1.0, 1.25, 512],
+                   "xlarge": [1.0, 1.5, 512],
                 }
     depth_mul = config_dict[size][0]
     width_mul = config_dict[size][1]
