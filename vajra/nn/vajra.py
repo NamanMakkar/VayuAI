@@ -108,9 +108,9 @@ class VajraV1WorldModel(nn.Module):
         self.pool1 = MaxPool(kernel_size=2, stride=2)
         self.vajra_block2 = VajraMerudandaBhag1(channels_list[1], channels_list[2], num_repeats[1], True, 3, False, 0.25) # stride 8
         self.pool2 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block3 = VajraMerudandaBhag2(channels_list[2], channels_list[3], num_repeats[2], True, 3) # stride 16
+        self.vajra_block3 = VajraMerudandaBhag1(channels_list[2], channels_list[3], num_repeats[2], True, 3) # stride 16
         self.pool3 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block4 = VajraMerudandaBhag2(channels_list[3], channels_list[4], num_repeats[3], True, 3) # stride 32
+        self.vajra_block4 = VajraMerudandaBhag1(channels_list[3], channels_list[4], num_repeats[3], True, 3) # stride 32
         self.pyramid_pool = Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, expansion_ratio=1.0)
         # Neck
         self.fusion4cbam = ChatushtayaSanlayan(in_c=channels_list[1:5], out_c=channels_list[6], expansion_ratio=1.0)
@@ -206,9 +206,9 @@ def build_vajra(in_channels,
             ):
     
     stride = torch.tensor([8., 16., 32.])
-    config_dict = {"nano": [0.33, 0.25, 1024], 
-                   "small": [0.33, 0.5, 1024], 
-                   "medium": [0.67, 1.0, 512], 
+    config_dict = {"nano": [0.50, 0.25, 1024], 
+                   "small": [0.50, 0.5, 1024], 
+                   "medium": [0.50, 1.0, 512], 
                    "large": [1.0, 1.0, 512], 
                    "xlarge": [1.0, 1.5, 512],
                 }
