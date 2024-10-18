@@ -63,7 +63,7 @@ class Detection(nn.Module):
                           for ch in in_channels
         )
         self.branch_cls = nn.ModuleList(
-            nn.Sequential(nn.Sequential(DepthwiseConvBNAct(ch, c3, kernel_size=3), ConvBNAct(c3, c3, kernel_size=1)),
+            nn.Sequential(nn.Sequential(DepthwiseConvBNAct(ch, ch, kernel_size=3), ConvBNAct(ch, c3, kernel_size=1)),
                           nn.Sequential(DepthwiseConvBNAct(c3, c3, kernel_size=3), ConvBNAct(c3, c3, kernel_size=1)),
                           nn.Conv2d(c3, self.num_classes, 1))
                           for ch in in_channels

@@ -496,7 +496,7 @@ class PoolingAttention(nn.Module):
         return x * self.scale
 
 class VajraMerudandaBhag1(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, bottleneck_pyconv=False, expansion_ratio=0.5) -> None:
+    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, bottleneck_pyconv=False, expansion_ratio=0.5, dw=False) -> None:
         super().__init__()
         block = BottleneckPyConv if bottleneck_pyconv else Bottleneck
         hidden_c = int(out_c * expansion_ratio)
@@ -507,7 +507,7 @@ class VajraMerudandaBhag1(nn.Module):
         self.shortcut=shortcut
         self.kernel_size=kernel_size
         self.bottleneck_pyconv = bottleneck_pyconv
-        self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
+        self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size) if not dw else nn.Sequential(DepthwiseConvBNAct(in_c, in_c, 1, 3), ConvBNAct(in_c, hidden_c, 1, 1))
         self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=1.0) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.cbam = CBAM(out_c)
