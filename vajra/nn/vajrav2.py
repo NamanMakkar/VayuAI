@@ -118,7 +118,7 @@ class VajraV2Model(nn.Module):
         self.fusion4cbam = ChatushtayaSanlayan(in_c=channels_list[1:5], out_c=channels_list[5])
         self.vajra_neck1 = VajraMerudandaBhag1(channels_list[5], channels_list[6], num_repeats[4], True, 1, False, 0.5)
 
-        self.fusion4cbam_1 = ChatushtayaSanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[7])
+        self.fusion4cbam2 = ChatushtayaSanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[7])
         self.vajra_neck2 = VajraMerudandaBhag1(channels_list[7], channels_list[8], num_repeats[5], True, 1, False, 0.5)
 
         self.pyramid_pool_neck1 = Sanlayan(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=2)
@@ -127,7 +127,7 @@ class VajraV2Model(nn.Module):
         self.pyramid_pool_neck2 = Sanlayan(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=2)
         self.vajra_neck4 = VajraMerudandaBhag1(channels_list[11], channels_list[12], num_repeats[7], True, 1, False, 0.5)
 
-    def forward(self, x):
+    """def forward(self, x):
         # Backbone
         stem = self.stem(x)
         vajra1 = self.vajra_block1(stem)
@@ -167,6 +167,41 @@ class VajraV2Model(nn.Module):
 
         if self.vajra_block4.out_c == 2 * self.vajra_neck4.out_c:
             vajra_neck4 = vajra_neck4 + vajra4_chunks[1]
+
+        outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
+        return outputs"""
+    
+    def forward(self, x):
+        # Backbone
+        stem = self.stem(x)
+        vajra1 = self.vajra_block1(stem)
+
+        pool1 = self.pool1(vajra1)
+        vajra2 = self.vajra_block2(pool1)
+
+        pool2 = self.pool2(vajra2)
+        vajra3 = self.vajra_block3(pool2)
+
+        pool3 = self.pool3(vajra3)
+        vajra4 = self.vajra_block4(pool3)
+        pyramid_pool_backbone = self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
+
+        # Neck
+        fusion4 = self.fusion4cbam([vajra1, vajra2, vajra3, pyramid_pool_backbone])
+        vajra_neck1 = self.vajra_neck1(fusion4)
+        #vajra_neck1 = vajra_neck1 + vajra3
+
+        fusion4_2 = self.fusion4cbam2([vajra1, vajra3, vajra2, vajra_neck1])
+        vajra_neck2 = self.vajra_neck2(fusion4_2)
+        #vajra_neck2 = vajra_neck2 + vajra2
+
+        pyramid_pool_neck1 = self.pyramid_pool_neck1([pyramid_pool_backbone, vajra_neck1, vajra_neck2])
+        vajra_neck3 = self.vajra_neck3(pyramid_pool_neck1)
+        #vajra_neck3 = vajra_neck3 + vajra3
+
+        pyramid_pool_neck2 = self.pyramid_pool_neck2([vajra_neck1, vajra_neck2, vajra_neck3])
+        vajra_neck4 = self.vajra_neck4(pyramid_pool_neck2)
+        #vajra_neck4 = vajra_neck4 + vajra4
 
         outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
         return outputs
