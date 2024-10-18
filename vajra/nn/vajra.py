@@ -235,13 +235,13 @@ def build_vajra(in_channels,
     max_channels = config_dict[size][2]
     max_channels = make_divisible(max_channels, 8)
     
-    if version == "v2":
-        num_repeats = [3, 6, 6, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
-        channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256] if task != "classify" else [64, 128, 256, 512, 1024]
+    #if version == "v2":
+        #num_repeats = [3, 6, 6, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
+        #channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256] if task != "classify" else [64, 128, 256, 512, 1024]
 
-    else:
-        num_repeats = [2, 2, 2, 2, 2, 2, 2, 2] if task != "classify" else [3, 3, 3, 3]
-        channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
+    #else:
+        #num_repeats = [2, 2, 2, 2, 2, 2, 2, 2] if task != "classify" else [3, 3, 3, 3]
+        #channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
 
     channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in channels_list]
     num_repeats = [(max(round(n * depth_mul), 1) if n > 1 else n) for n in num_repeats]
