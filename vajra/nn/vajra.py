@@ -219,15 +219,23 @@ def build_vajra(in_channels,
         channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
     
     else:
-        config_dict = {"nano": [0.33, 0.25, 1024], 
+        """config_dict = {"nano": [0.33, 0.25, 1024], 
                        "small": [0.33, 0.5, 1024], 
                        "medium": [0.67, 0.75, 768], 
                        "large": [1.0, 1.0, 512], 
                        "xlarge": [1.0, 1.25, 512],
+                }"""
+        
+        config_dict = {"nano": [0.50, 0.25, 1024], 
+                       "small": [0.50, 0.5, 1024], 
+                       "medium": [0.50, 1.0, 512], 
+                       "large": [1.0, 1.0, 512], 
+                       "xlarge": [1.0, 1.5, 512],
                 }
         
-        num_repeats = [3, 6, 6, 3, 3, 3, 3, 3] if task != "classify" else [3, 6, 6, 3]
-        channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256] if task != "classify" else [64, 128, 256, 512, 1024]
+        num_repeats = [3, 3, 3, 3, 3, 3, 3, 3] if task != "classify" else [3, 3, 3, 3]
+        channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
+        #channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256] if task != "classify" else [64, 128, 256, 512, 1024]
 
     depth_mul = config_dict[size][0]
     width_mul = config_dict[size][1]

@@ -29,13 +29,13 @@ class VajraV3Model(nn.Module):
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
         # Backbone
         self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
-        self.vajra_block1 = VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3, False, 0.25) #VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3) # stride 4
+        self.vajra_block1 = VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3, False, 0.25, True) #VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3) # stride 4
         self.pool1 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block2 = VajraMerudandaBhag1(channels_list[1], channels_list[2], num_repeats[1], True, 3, False, 0.25) #VajraMerudandaBhag1(channels_list[1], channels_list[2], num_repeats[1], True, 3) # stride 8 VajraMerudandaBhag5(channels_list[1], channels_list[2], True, 1)
+        self.vajra_block2 = VajraMerudandaBhag1(channels_list[1], channels_list[2], num_repeats[1], True, 3, False, 0.25, True) #VajraMerudandaBhag1(channels_list[1], channels_list[2], num_repeats[1], True, 3) # stride 8 VajraMerudandaBhag5(channels_list[1], channels_list[2], True, 1)
         self.pool2 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block3 = VajraMerudandaBhag1(channels_list[2], channels_list[3], num_repeats[2], True, 3, False, 0.5) # stride 16 VajraMerudandaBhag5(channels_list[2], channels_list[3], True, 2)
+        self.vajra_block3 = VajraMerudandaBhag1(channels_list[2], channels_list[3], num_repeats[2], True, 3, False, 0.5, True) # stride 16 VajraMerudandaBhag5(channels_list[2], channels_list[3], True, 2)
         self.pool3 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block4 = VajraMerudandaBhag1(channels_list[3], channels_list[4], num_repeats[3], True, 3, False, 0.5) # stride 32 VajraMerudandaBhag5(channels_list[3], channels_list[4], True, 4)
+        self.vajra_block4 = VajraMerudandaBhag1(channels_list[3], channels_list[4], num_repeats[3], True, 3, False, 0.5, True) # stride 32 VajraMerudandaBhag5(channels_list[3], channels_list[4], True, 4)
         self.pyramid_pool = Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, expansion_ratio=1.0)
 
         # Neck
