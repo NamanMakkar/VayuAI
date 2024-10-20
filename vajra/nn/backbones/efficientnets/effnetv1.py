@@ -68,16 +68,16 @@ class VajraEffNetV1(nn.Module):
         self.pyramidal_pool_cbam = Sanlayan(in_c=self.channels_list[3:], out_c=self.channels_list[6], stride=2)
         
         self.fusion4cbam = ChatushtayaSanlayan(in_c=self.channels_list[3:], out_c=self.neck_channels_list[0])
-        self.vajra_neck1 = VajraMerudandaBhag1(in_c=self.neck_channels_list[0], out_c=self.neck_channels_list[1], num_blocks=self.num_neck_repeats[0], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
+        self.vajra_neck1 = VajraMerudandaBhag1(in_c=self.neck_channels_list[0], out_c=self.neck_channels_list[1], num_blocks=self.num_neck_repeats[0], shortcut=False, kernel_size=1, bottleneck_dwcib=False)
 
         self.fusion4cbam_1 = ChatushtayaSanlayan(in_c=[self.channels_list[4], self.channels_list[5], self.channels_list[3], self.neck_channels_list[1]], out_c=self.neck_channels_list[2])
-        self.vajra_neck2 = VajraMerudandaBhag1(in_c=self.neck_channels_list[2], out_c=self.neck_channels_list[3], num_blocks=self.num_neck_repeats[1], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
+        self.vajra_neck2 = VajraMerudandaBhag1(in_c=self.neck_channels_list[2], out_c=self.neck_channels_list[3], num_blocks=self.num_neck_repeats[1], shortcut=False, kernel_size=1, bottleneck_dwcib=False)
 
         self.pyramidal_pool_neck = Sanlayan(in_c=[self.channels_list[6], self.neck_channels_list[1], self.neck_channels_list[3]], out_c=self.neck_channels_list[4], stride=2)
-        self.vajra_neck3 = VajraMerudandaBhag1(in_c=self.neck_channels_list[4], out_c=self.neck_channels_list[5], num_blocks=self.num_neck_repeats[2], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
+        self.vajra_neck3 = VajraMerudandaBhag1(in_c=self.neck_channels_list[4], out_c=self.neck_channels_list[5], num_blocks=self.num_neck_repeats[2], shortcut=False, kernel_size=1, bottleneck_dwcib=False)
 
         self.pyramidal_pool_neck_1 = Sanlayan(in_c=[self.neck_channels_list[1], self.neck_channels_list[3], self.neck_channels_list[5]], out_c=self.neck_channels_list[6], stride=2)
-        self.vajra_neck4 = VajraMerudandaBhag1(in_c=self.neck_channels_list[6], out_c=self.neck_channels_list[7], num_blocks=self.num_neck_repeats[3], shortcut=False, kernel_size=1, bottleneck_pyconv=False)
+        self.vajra_neck4 = VajraMerudandaBhag1(in_c=self.neck_channels_list[6], out_c=self.neck_channels_list[7], num_blocks=self.num_neck_repeats[3], shortcut=False, kernel_size=1, bottleneck_dwcib=False)
 
     def forward(self, x):
         x = self.conv1(x)

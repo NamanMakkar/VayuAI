@@ -6,7 +6,7 @@ import torch.nn as nn
 from pathlib import Path
 from vajra.checks import check_suffix, check_requirements
 from vajra.utils.downloads import attempt_download_asset
-from vajra.nn.modules import VajraStemBlock, VajraMerudandaBhag1, VajraMerudandaBhag3, VajraMerudandaBhag4, VajraMerudandaBhag5, VajraMerudandaBhag6, VajraGrivaBhag1, VajraGrivaBhag2, VajraStambh, VajraMerudandaBhag2, VajraAttentionBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, MaxPool, ImagePoolingAttention, AttentionBottleneck, AttentionBlock
+from vajra.nn.modules import VajraStemBlock, VajraMerudandaBhag1, VajraMerudandaBhag3, VajraMerudandaBhag4, VajraMerudandaBhag5, VajraMerudandaBhag6, VajraGrivaBhag1, VajraGrivaBhag2, VajraStambh, VajraMerudandaBhag2, VajraAttentionBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, MaxPool, ImagePoolingAttention, AttentionBottleneck, AttentionBlock, MerudandaDW
 from vajra.nn.head import Detection, OBBDetection, Segementation, Classification, PoseDetection, WorldDetection, Panoptic, DEYODetection
 from vajra.nn.vajrav2 import VajraV2Model, VajraV2CLSModel
 from vajra.nn.vajrav3 import VajraV3Model, VajraV3CLSModel
@@ -71,24 +71,22 @@ class VajraV1Model(nn.Module):
 
         pool3 = self.pool3(vajra3)
         vajra4 = self.vajra_block4(pool3)
-        pyramid_pool_backbone = self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
+        pyramid_pool_backbone = self.pyramid_pool([vajra1, vajra2, vajra3, vajra4]) #self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
 
         # Neck
-        fusion4 = self.fusion4cbam([vajra1, vajra2, vajra3, pyramid_pool_backbone])
+        fusion4 = self.fusion4cbam([vajra1, vajra2, vajra3, pyramid_pool_backbone]) # stride 16
         vajra_neck1 = self.vajra_neck1(fusion4)
-        vajra_neck1 = vajra_neck1 + vajra3
 
-        fusion4_2 = self.fusion4cbam2([vajra1, vajra3, vajra2, vajra_neck1])
+        fusion4_2 = self.fusion4cbam2([vajra1, vajra3, vajra2, vajra_neck1]) # stride 8
         vajra_neck2 = self.vajra_neck2(fusion4_2)
         vajra_neck2 = vajra_neck2 + vajra2
 
-        pyramid_pool_neck1 = self.pyramid_pool_neck1([pyramid_pool_backbone, vajra_neck1, vajra_neck2])
+        pyramid_pool_neck1 = self.pyramid_pool_neck1([pyramid_pool_backbone, vajra_neck1, vajra_neck2]) # stride 16
         vajra_neck3 = self.vajra_neck3(pyramid_pool_neck1)
-        vajra_neck3 = vajra_neck3 + vajra3
 
-        pyramid_pool_neck2 = self.pyramid_pool_neck2([vajra_neck1, vajra_neck2, vajra_neck3])
+        pyramid_pool_neck2 = self.pyramid_pool_neck2([vajra_neck1, vajra_neck2, vajra_neck3]) # stride 32
+
         vajra_neck4 = self.vajra_neck4(pyramid_pool_neck2)
-        vajra_neck4 = vajra_neck4 + vajra4
 
         outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
         return outputs
@@ -207,40 +205,33 @@ def build_vajra(in_channels,
     
     stride = torch.tensor([8., 16., 32.])
 
-    if version != "v2":
-        config_dict = {"nano": [0.50, 0.25, 1024], 
-                       "small": [0.50, 0.5, 1024], 
-                       "medium": [0.50, 1.0, 512], 
-                       "large": [1.0, 1.0, 512], 
-                       "xlarge": [1.0, 1.5, 512],
+    if version != "v1" and version != "v3":
+        config_dict = {"nano": [0.5, 0.5, 0.25, 1024], 
+                       "small": [0.5, 0.5, 0.5, 1024],
+                       "medium": [0.5, 0.50, 1.0, 512],
+                       "large": [1.0, 1.0, 1.0, 512],
+                       "xlarge": [1.0, 1.0, 1.5, 512],
                 }
         
         num_repeats = [2, 2, 2, 2, 2, 2, 2, 2] if task != "classify" else [2, 2, 2, 2]
         channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
     
     else:
-        """config_dict = {"nano": [0.33, 0.25, 1024], 
-                       "small": [0.33, 0.5, 1024], 
-                       "medium": [0.67, 0.75, 768], 
-                       "large": [1.0, 1.0, 512], 
-                       "xlarge": [1.0, 1.25, 512],
-                }"""
-        
-        config_dict = {"nano": [0.50, 0.25, 1024], 
-                       "small": [0.50, 0.5, 1024], 
-                       "medium": [0.50, 1.0, 512], 
-                       "large": [1.0, 1.0, 512], 
-                       "xlarge": [1.0, 1.5, 512],
+        config_dict = {"nano": [0.5, 0.33, 0.25, 1024], 
+                       "small": [0.5, 0.33, 0.5, 1024], 
+                       "medium": [0.5, 0.67, 0.75, 512], 
+                       "large": [1.0, 1.0, 1.0, 512],
+                       "xlarge": [1.0, 1.0, 1.25, 512],
                 }
         
-        num_repeats = [3, 3, 3, 3, 3, 3, 3, 3] if task != "classify" else [3, 3, 3, 3]
+        num_repeats = [2, 2, 2, 2, 3, 3, 3, 3] if task != "classify" else [2, 2, 2, 2]
         channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
-        #channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256] if task != "classify" else [64, 128, 256, 512, 1024]
 
-    depth_mul = config_dict[size][0]
-    width_mul = config_dict[size][1]
+    backbone_depth_mul = config_dict[size][0]
+    neck_depth_mul = config_dict[size][1]
+    width_mul = config_dict[size][2]
     num_protos = 256 * width_mul
-    max_channels = config_dict[size][2]
+    max_channels = config_dict[size][3]
     max_channels = make_divisible(max_channels, 8)
     
     #if version == "v2":
@@ -252,7 +243,7 @@ def build_vajra(in_channels,
         #channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
 
     channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in channels_list]
-    num_repeats = [(max(round(n * depth_mul), 1) if n > 1 else n) for n in num_repeats]
+    num_repeats = [(max(round(n * backbone_depth_mul), 1) if n > 1 else n) for n in num_repeats[:4]] + [(max(round(n * neck_depth_mul), 1) if n > 1 else n) for n in num_repeats[4:]]
 
     embed_channels = [256, 128, 256, 512]
     embed_channels = [make_divisible(min(ch, max_channels // 2) * width_mul, 8) for ch in embed_channels]
