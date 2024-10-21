@@ -436,6 +436,41 @@ class BottleneckDWConv(nn.Module):
     def forward(self, x):
         return x + self.conv2(self.dwconv(self.conv1(x))) if self.add else self.conv2(self.dwconv(self.conv1(x)))
     
+class RepVGGDW(nn.Module):
+    def __init__(self, dim) -> None:
+        super().__init__()
+        self.conv = DepthwiseConvBNAct(dim, dim, 1, 7, act=False)
+        self.conv1 = DepthwiseConvBNAct(dim, dim, 1, 3, act=False)
+        self.dim = dim
+        self.act = nn.SiLU()
+
+    def forward(self, x):
+        return self.act(self.conv(x) + self.conv1(x))
+    
+    def forward_fuse(self, x):
+        self.act(self.conv(x))
+
+    @torch.no_grad()
+    def fuse(self):
+        conv = fuse_conv_and_bn(self.conv.conv, self.conv.bn)
+        conv1 = fuse_conv_and_bn(self.conv1.conv, self.conv1.bn)
+
+        conv_w = conv.weight
+        conv_b = conv.bias
+        conv1_w = conv1.weight
+        conv1_b = conv1.bias
+
+        conv1_w = torch.nn.functional.pad(conv1_w, [2, 2, 2, 2])
+
+        final_conv_w = conv_w + conv1_w
+        final_conv_b = conv_b + conv1_b
+
+        conv.weight.data.copy_(final_conv_w)
+        conv.bias.data.copy_(final_conv_b)
+
+        self.conv = conv
+        del self.conv1
+
 class MerudandaDW(nn.Module):
     def __init__(self, in_c, out_c, shortcut=True, expansion_ratio=0.5):
         super().__init__()
