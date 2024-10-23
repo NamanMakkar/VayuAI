@@ -9,17 +9,14 @@ tasks like object detection and tracking, instance segmentation, oriented object
 ## <div align="center">Enterprise License</div>
 To request for an Enterprise License please get in touch via [Email](mailto:namansingh2803@gmail.com)
 
-## <div align="center">Performance</div>
-| Model                                                                                | size<br><sup>(pixels) | mAP<sup>val<br>50-95 | Speed<br><sup>P100 PyTorch Latency<br>(ms) | Speed<br><sup>A100 PyTorch Latency<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
+## <div align="center">Performance on VisDrone Dataset</div>
+| Model                                                                                | size<br><sup>(pixels) | mAP<sup>val<br>50-95 | Speed<br><sup>T4 TensorRT10 Latency<br>(ms) | Speed<br><sup>RTX 4090 TensorRT10 Latency<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
 | ------------------------------------------------------------------------------------ | --------------------- | -------------------- | ------------------------------ | ----------------------------------- | ------------------ | ----------------- |
-| VajraV1-nano-det | 640                   |                 | 1.9                        | 1.3                              | 1.56                | 9.2               |
-| VajraV1-small-det | 640                   |                | 3.2                      | 1.5                               | 6.075               | 32.7              |
-| VajraV1-medium-det | 640                   |                 | 6.1                        | 2.1                               | 15.11               | 87.8              |
-| VajraV1-large-det | 640                   |                  | 10.0                        | 3.0                               | 27.31               | 180.1             |
-| VajraV1-xlarge-det | 640                   |                 | 14.4                       | 4.0                               | 42.64               | 280.5             |
-| VajraV2-nano-det       | 640                  |                      |                                            |                                            |                    |                   |
-| VajraV2-medium-det     | 640                  |                      |                                            |                                            |                    |                   |
-| VajraV2-xlarge-det     | 640                  |                      |                                            |                                            |                    |                   |
+| VajraV1-nano-det | 640                   |                 | 5.5                        | 1.6                              | 2.22                | 10.4               |
+| VajraV1-small-det | 640                   | 26.2               | 5.8                      | 1.7                               | 4.45               | 24.7              |
+| VajraV1-medium-det | 640                   | 28.0                | 6.6                        | 1.7                               | 10.46               | 89.2              |
+| VajraV1-large-det | 640                   | 28.6                 | 8.2                        | 2.2                               | 13.23               | 106.4             |
+| VajraV1-xlarge-det | 640                   | 29.8                | 12                       | 2.8                               | 29.61              | 237.5             |
 
 Results to be published soon!
 
