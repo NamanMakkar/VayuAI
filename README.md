@@ -10,7 +10,7 @@ tasks like object detection and tracking, instance segmentation, oriented object
 To request for an Enterprise License please get in touch via [Email](mailto:namansingh2803@gmail.com)
 
 ## <div align="center">Performance on VisDrone Dataset</div>
-| Model                                                                                | size<br><sup>(pixels) | mAP<sup>val<br>50-95 | Speed<br><sup>T4 TensorRT10 Latency<br>(ms) | Speed<br><sup>RTX 4090 TensorRT10 Latency<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
+| Model                                                                                | size<br><sup>(pixels) | mAP<sup>test-dev<br>50-95 | Speed<br><sup>T4 TensorRT10 Latency<br>(ms) | Speed<br><sup>RTX 4090 TensorRT10 Latency<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
 | ------------------------------------------------------------------------------------ | --------------------- | -------------------- | ------------------------------ | ----------------------------------- | ------------------ | ----------------- |
 | VajraV1-nano-det | 640                   |                 | 5.5                        | 1.6                              | 2.22                | 10.4               |
 | VajraV1-small-det | 640                   | 26.2               | 5.8                      | 1.7                               | 4.45               | 24.7              |
