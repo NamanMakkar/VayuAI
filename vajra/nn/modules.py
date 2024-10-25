@@ -759,7 +759,7 @@ class VajraMerudandaBhag2(nn.Module):
         self.num_bottleneck_blocks = num_bottleneck_blocks
         self.expansion_ratio = expansion_ratio
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, num_blocks=num_bottleneck_blocks, bottleneck_dwcib=True) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, num_blocks=num_bottleneck_blocks, bottleneck_dwcib=False) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.add = shortcut and in_c == out_c
 
@@ -2186,8 +2186,8 @@ class AttentionBottleneck(nn.Module):
         self.out_c = out_c
         hidden_c = int(out_c * 0.5)
         self.num_blocks = num_blocks
-        self.conv1 = nn.Sequential(DepthwiseConvBNAct(in_c, in_c, 1, 3), ConvBNAct(in_c, hidden_c, 1, 1))
-        self.attn = nn.ModuleList(AttentionBlock(hidden_c, hidden_c, num_heads=self.in_c // 64) for _ in range(num_blocks))
+        self.conv1 = ConvBNAct(in_c, hidden_c, 1, 3) #nn.Sequential(ConvBNAct(in_c, hidden_c, 1, 1))
+        self.attn = nn.ModuleList(AttentionBlock(hidden_c, hidden_c, num_heads=hidden_c // 64) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, 1, 1)
 
     def forward(self, x):
