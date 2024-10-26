@@ -78,6 +78,9 @@ class ConvBNAct(nn.Module):
         self.kernel_size = kernel_size
         self.padding = padding
         self.act = act
+        self.groups = groups
+        self.dilation=dilation
+        self.bias = bias
         self.conv = nn.Conv2d(in_c, 
                               out_c, 
                               kernel_size=kernel_size,
@@ -95,7 +98,7 @@ class ConvBNAct(nn.Module):
         return self.act(self.conv(x))
 
     def get_module_info(self):
-        return f"ConvBNAct", f"[{self.in_c}, {self.out_c}, {self.stride}, {self.kernel_size}, {self.padding}, {self.act}]"
+        return f"ConvBNAct", f"[{self.in_c}, {self.out_c}, {self.stride}, {self.kernel_size}, {self.padding}, {self.groups}, {self.dilation}, {self.bias}, {self.act}]"
 
 class DepthwiseConvBNAct(ConvBNAct):
     def __init__(self, in_c, out_c, stride=1, kernel_size=1, padding=None, groups=1, dilation=1, bias=False, act='silu') -> None:
@@ -472,16 +475,15 @@ class RepVGGDW(nn.Module):
         del self.conv1
 
 class MerudandaDW(nn.Module):
-    def __init__(self, in_c, out_c, shortcut=True, expansion_ratio=0.5):
+    def __init__(self, in_c, out_c, shortcut=True, expansion_ratio=0.5, use_rep_vgg_dw=False):
         super().__init__()
         hidden_c = int(out_c * expansion_ratio)
         self.add = shortcut and in_c == out_c
         self.conv_dw1 = DepthwiseConvBNAct(in_c, in_c, kernel_size=3)
         self.conv_pw1 = ConvBNAct(in_c, 2 * hidden_c, 1, 1)
-        self.conv_dw2 = DepthwiseConvBNAct(2 * hidden_c, 2 * hidden_c, 1, 3)
+        self.conv_dw2 = DepthwiseConvBNAct(2 * hidden_c, 2 * hidden_c, 1, 3) if not use_rep_vgg_dw else RepVGGDW(2 * hidden_c)
         self.conv_pw2 = ConvBNAct(2 * hidden_c, out_c, 1, 1)
         self.conv_dw3 = DepthwiseConvBNAct(out_c, out_c, 1, 3)
-        self.act = nn.SiLU()
 
     def forward(self, x):
         conv_dw1 = self.conv_dw1(x)
@@ -704,6 +706,32 @@ class VajraMerudandaBhag6(nn.Module):
     def get_module_info(self):
         return f"VajraMerudandaBhag6", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.expansion_ratio}]"
 
+class VajraMerudandaBhag7(nn.Module):
+    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, bottleneck_dwcib=False, expansion_ratio=0.5, dw=False) -> None:
+        super().__init__()
+        block = MerudandaDW if bottleneck_dwcib else Bottleneck
+        hidden_c = int(out_c * expansion_ratio)
+        self.in_c = in_c
+        self.out_c = out_c
+        self.expansion_ratio = expansion_ratio
+        self.num_blocks=num_blocks
+        self.shortcut=shortcut
+        self.kernel_size=kernel_size
+        self.bottleneck_dwcib = bottleneck_dwcib
+        self.dwconv = dw
+        self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size) if not dw else nn.Sequential(DepthwiseConvBNAct(in_c, in_c, 1, 3), ConvBNAct(in_c, hidden_c, 1, 1))
+        self.bottleneck_blocks = nn.Sequential(*(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=1.0) for _ in range(num_blocks)))
+        self.conv2 = ConvBNAct(2 * hidden_c, out_c, kernel_size=1, stride=1)
+        self.add = shortcut and in_c == out_c
+
+    def forward(self, x):
+        conv = self.conv1(x)
+        y = self.conv2(torch.cat((self.bottleneck_blocks(conv), conv), 1))
+        return y + x if self.add else y
+
+    def get_module_info(self):
+        return f"VajraMerudandaBhag7", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_dwcib}, {self.expansion_ratio}, {self.dwconv}]"
+
 class VajraGrivaBhag1(nn.Module):
     def __init__(self, out_c, num_blocks=3, kernel_size=1, expansion_ratio=0.5, use_cbam=True, bottleneck_dw=False) -> None:
         super().__init__()
@@ -715,7 +743,7 @@ class VajraGrivaBhag1(nn.Module):
         self.kernel_size=kernel_size
         self.use_cbam = use_cbam
         self.bottleneck_dw = bottleneck_dw
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=False if block == Bottleneck else True, expansion_ratio=1.0) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=True, expansion_ratio=1.0) for _ in range(num_blocks))
         self.conv2 = ConvBNAct((num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
 
@@ -749,7 +777,7 @@ class InnerBlock(nn.Module):
 class VajraMerudandaBhag2(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, num_bottleneck_blocks=1, expansion_ratio=0.5) -> None:
         super().__init__()
-        block = VajraMerudandaBhag1
+        block = VajraMerudandaBhag7
         hidden_c = int(out_c * expansion_ratio)
         self.in_c = in_c
         self.out_c = out_c
@@ -775,12 +803,12 @@ class VajraMerudandaBhag2(nn.Module):
 class VajraGrivaBhag2(nn.Module):
     def __init__(self, out_c, num_blocks=3, kernel_size=1, num_bottleneck_blocks=1, bottleneck_dw = False) -> None:
         super().__init__()
-        block = VajraMerudandaBhag1
+        block = VajraMerudandaBhag7
         hidden_c = int(out_c * 0.5)
         self.out_c = out_c
         self.num_blocks=num_blocks
         self.kernel_size=kernel_size
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=False if not bottleneck_dw else True, kernel_size=kernel_size, num_blocks=num_bottleneck_blocks, bottleneck_dwcib=bottleneck_dw) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=True, kernel_size=kernel_size, num_blocks=num_bottleneck_blocks, bottleneck_dwcib=bottleneck_dw) for _ in range(num_blocks))
         self.conv2 = ConvBNAct((num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
 
     def forward(self, x):
@@ -1124,7 +1152,7 @@ class ChatushtayaSanlayan(nn.Module):
         return f"ChatushtayaSanlayan", f"[{self.in_c}, {self.out_c}, {self.use_cbam}, {self.expansion_ratio}]"
 
 class Sanlayan(nn.Module):
-    def __init__(self, in_c, out_c, stride=2, use_cbam=True, expansion_ratio=1.0) -> None:
+    def __init__(self, in_c, out_c, stride=2, use_cbam=True, expansion_ratio=1.0, kernel_size=1) -> None:
         super().__init__()
         self.in_c = in_c
         self.out_c = out_c
@@ -1134,7 +1162,7 @@ class Sanlayan(nn.Module):
         self.expansion_ratio = expansion_ratio
         self.out_channels = int(out_c * expansion_ratio)
         self.cbam = CBAM(self.out_channels) if self.use_cbam else nn.Identity()
-        self.conv_fused = ConvBNAct(total_c, self.out_channels, 1, 1)
+        self.conv_fused = ConvBNAct(total_c, self.out_channels, 1, kernel_size=kernel_size)
     
     def forward(self, inputs):
         B, C, H, W = inputs[-1].shape
