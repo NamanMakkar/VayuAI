@@ -556,7 +556,7 @@ class PoolingAttention(nn.Module):
         return x * self.scale
 
 class VajraMerudandaBhag1(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, bottleneck_dwcib=False, expansion_ratio=0.5, dw=False, use_cbam=True) -> None:
+    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, bottleneck_dwcib=False, expansion_ratio=0.5, dw=False) -> None:
         super().__init__()
         block = MerudandaDW if bottleneck_dwcib else Bottleneck
         hidden_c = int(out_c * expansion_ratio)
@@ -568,22 +568,18 @@ class VajraMerudandaBhag1(nn.Module):
         self.kernel_size=kernel_size
         self.bottleneck_dwcib = bottleneck_dwcib
         self.dwconv = dw
-        self.use_cbam = use_cbam
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size) if not dw else nn.Sequential(ConvBNAct(in_c, hidden_c, 1, 1), DepthwiseConvBNAct(hidden_c, hidden_c, 1, 3))
         self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=1.0) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
-        self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
-        self.add = shortcut and in_c == out_c
 
     def forward(self, x):
         y = [x, self.conv1(x)]
         y.extend(bottleneck(y[-1]) for bottleneck in self.bottleneck_blocks)
         y = self.conv2(torch.cat(y, 1))
-        cbam = self.cbam(y)
-        return x + cbam if self.add else y + cbam
+        return y
 
     def get_module_info(self):
-        return f"VajraMerudandaBhag1", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_dwcib}, {self.expansion_ratio}, {self.dwconv}, {self.use_cbam}]"
+        return f"VajraMerudandaBhag1", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_dwcib}, {self.expansion_ratio}, {self.dwconv}]"
 
 class VajraMerudandaBhag3(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=3, shortcut=False) -> None:
@@ -733,7 +729,7 @@ class VajraMerudandaBhag7(nn.Module):
         return f"VajraMerudandaBhag7", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_dwcib}, {self.expansion_ratio}, {self.dwconv}]"
 
 class VajraGrivaBhag1(nn.Module):
-    def __init__(self, out_c, num_blocks=3, kernel_size=1, expansion_ratio=0.5, use_cbam=True, bottleneck_dw=False) -> None:
+    def __init__(self, out_c, num_blocks=3, kernel_size=1, expansion_ratio=0.5, bottleneck_dw=False) -> None:
         super().__init__()
         block = Bottleneck if not bottleneck_dw else MerudandaDW
         hidden_c = int(out_c * expansion_ratio)
@@ -741,21 +737,18 @@ class VajraGrivaBhag1(nn.Module):
         self.expansion_ratio = expansion_ratio
         self.num_blocks=num_blocks
         self.kernel_size=kernel_size
-        self.use_cbam = use_cbam
         self.bottleneck_dw = bottleneck_dw
         self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=True if bottleneck_dw else False, expansion_ratio=1.0) for _ in range(num_blocks))
         self.conv2 = ConvBNAct((num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
-        self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
 
     def forward(self, x):
         y = [x]
         y.extend(bottleneck(y[-1]) for bottleneck in self.bottleneck_blocks)
         y = self.conv2(torch.cat(y, 1))
-        cbam = self.cbam(y)
-        return y + cbam
+        return y
 
     def get_module_info(self):
-        return f"VajraGrivaBhag1", f"[{self.out_c}, {self.num_blocks}, {self.kernel_size}, {self.expansion_ratio}, {self.use_cbam}, {self.bottleneck_dw}]"
+        return f"VajraGrivaBhag1", f"[{self.out_c}, {self.num_blocks}, {self.kernel_size}, {self.expansion_ratio}, {self.bottleneck_dw}]"
 
 class InnerBlock(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=1, shortcut=False, kernel_size=3) -> None:
