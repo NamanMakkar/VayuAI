@@ -569,7 +569,7 @@ class VajraMerudandaBhag1(nn.Module):
         self.bottleneck_dwcib = bottleneck_dwcib
         self.dwconv = dw
         self.use_cbam = use_cbam
-        self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size) if not dw else nn.Sequential(DepthwiseConvBNAct(in_c, in_c, 1, 3), ConvBNAct(in_c, hidden_c, 1, 1))
+        self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size) if not dw else nn.Sequential(ConvBNAct(in_c, hidden_c, 1, 1), DepthwiseConvBNAct(hidden_c, hidden_c, 1, 3))
         self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=1.0) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
@@ -583,7 +583,7 @@ class VajraMerudandaBhag1(nn.Module):
         return x + cbam if self.add else y + cbam
 
     def get_module_info(self):
-        return f"VajraMerudandaBhag1", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_dwcib}, {self.expansion_ratio}, {self.dwconv}]"
+        return f"VajraMerudandaBhag1", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_dwcib}, {self.expansion_ratio}, {self.dwconv}, {self.use_cbam}]"
 
 class VajraMerudandaBhag3(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=3, shortcut=False) -> None:
@@ -743,7 +743,7 @@ class VajraGrivaBhag1(nn.Module):
         self.kernel_size=kernel_size
         self.use_cbam = use_cbam
         self.bottleneck_dw = bottleneck_dw
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=True, expansion_ratio=1.0) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=True if bottleneck_dw else False, expansion_ratio=1.0) for _ in range(num_blocks))
         self.conv2 = ConvBNAct((num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
 
