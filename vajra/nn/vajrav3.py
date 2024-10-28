@@ -26,7 +26,7 @@ class VajraV3Model(nn.Module):
                  num_repeats=[2, 2, 2, 2, 2, 2, 2, 2],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, -1, [10, 13, -1], -1, -1, [13, 16, 19]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, -1, [10, 12, -1], -1, -1, [12, 15, 18]]
         # Backbone
         self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
         self.vajra_block1 = VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3, False, 0.25, False) # stride 4
@@ -39,18 +39,18 @@ class VajraV3Model(nn.Module):
         self.pyramid_pool = Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, use_cbam=False, expansion_ratio=1.0)
         # Neck
         self.fusion4cbam = ChatushtayaSanlayan(in_c=channels_list[1:5], out_c=channels_list[6], use_cbam=False, expansion_ratio=0.5)
-        self.vajra_neck1 = VajraGrivaBhag1(channels_list[6], num_repeats[4], 1, 0.5, True)
+        self.vajra_neck1 = VajraGrivaBhag1(channels_list[6], num_repeats[4], 1, 0.5, False, True)
 
         self.fusion4cbam2 = ChatushtayaSanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[8], use_cbam=False, expansion_ratio=0.5)
         self.vajra_neck2 = VajraGrivaBhag1(channels_list[8], num_repeats[5], 1, 0.5)
 
         self.pyramid_pool_neck1 = Sanlayan(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[10], stride=2, use_cbam=False, expansion_ratio=0.5)
         self.neck_conv1 = ConvBNAct(channels_list[10] // 2, channels_list[10] // 2, 1, 3)
-        self.vajra_neck3 = VajraGrivaBhag1(channels_list[10], num_repeats[6], 1, 0.5, True)
+        self.vajra_neck3 = VajraGrivaBhag1(channels_list[10], num_repeats[6], 1, 0.5, False, True)
 
         self.pyramid_pool_neck2 = Sanlayan(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[12], stride=2, use_cbam=False, expansion_ratio=0.5)
         self.neck_conv2 = ConvBNAct(channels_list[12] // 2, channels_list[12] // 2, 1, 3)
-        self.vajra_neck4 = VajraGrivaBhag1(channels_list[12], num_repeats[7], 1, 0.5, True)
+        self.vajra_neck4 = VajraGrivaBhag1(channels_list[12], num_repeats[7], 1, 0.5, False, True)
 
     def forward(self, x):
         # Backbone
