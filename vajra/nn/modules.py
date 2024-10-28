@@ -571,12 +571,13 @@ class VajraMerudandaBhag1(nn.Module):
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size) if not dw else nn.Sequential(ConvBNAct(in_c, hidden_c, 1, 1), DepthwiseConvBNAct(hidden_c, hidden_c, 1, 3))
         self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=1.0) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
+        self.add = shortcut and in_c == out_c
 
     def forward(self, x):
         y = [x, self.conv1(x)]
         y.extend(bottleneck(y[-1]) for bottleneck in self.bottleneck_blocks)
         y = self.conv2(torch.cat(y, 1))
-        return y
+        return y + x if self.add else y
 
     def get_module_info(self):
         return f"VajraMerudandaBhag1", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_dwcib}, {self.expansion_ratio}, {self.dwconv}]"
@@ -788,7 +789,7 @@ class VajraMerudandaBhag2(nn.Module):
         y = [x, self.conv1(x)]
         y.extend(bottleneck(y[-1]) for bottleneck in self.bottleneck_blocks)
         y = self.conv2(torch.cat(y, 1))
-        return y + x if self.add else  y
+        return y + x if self.add else y
 
     def get_module_info(self):
         return f"VajraMerudandaBhag2", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.num_bottleneck_blocks}, {self.expansion_ratio}]"
