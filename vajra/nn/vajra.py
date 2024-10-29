@@ -36,9 +36,9 @@ class VajraV1Model(nn.Module):
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, -1, [10, 12, -1], -1, -1, [12, 15, 18]]
         # Backbone
         self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
-        self.vajra_block1 = VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3, False, 0.25, False) # stride 4
+        self.vajra_block1 = VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3, False, 0.5, False) # stride 4
         self.pool1 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block2 = VajraMerudandaBhag1(channels_list[1], channels_list[2], num_repeats[1], True, 3, False, 0.25, False) # stride 8
+        self.vajra_block2 = VajraMerudandaBhag1(channels_list[1], channels_list[2], num_repeats[1], True, 3, False, 0.5, False) # stride 8
         self.pool2 = MaxPool(kernel_size=2, stride=2)
         self.vajra_block3 = VajraMerudandaBhag1(channels_list[2], channels_list[3], num_repeats[2], True, 3, True, 0.5, False) # stride 16
         self.pool3 = MaxPool(kernel_size=2, stride=2)
@@ -84,13 +84,13 @@ class VajraV1Model(nn.Module):
         vajra_neck2 = vajra_neck2 + vajra2
 
         pyramid_pool_neck1 = self.pyramid_pool_neck1([pyramid_pool_backbone, vajra_neck1, vajra_neck2])
-        neck_conv1 = self.neck_conv1(pyramid_pool_neck1)
-        vajra_neck3 = self.vajra_neck3(neck_conv1)
+        neck_conv3 = self.neck_conv1(pyramid_pool_neck1)
+        vajra_neck3 = self.vajra_neck3(neck_conv3)
         vajra_neck3 = vajra_neck3 + vajra3
 
         pyramid_pool_neck2 = self.pyramid_pool_neck2([vajra_neck1, vajra_neck2, vajra_neck3])
-        neck_conv2 = self.neck_conv2(pyramid_pool_neck2)
-        vajra_neck4 = self.vajra_neck4(neck_conv2)
+        neck_conv4 = self.neck_conv2(pyramid_pool_neck2)
+        vajra_neck4 = self.vajra_neck4(neck_conv4)
         vajra_neck4 = vajra_neck4 + vajra4
 
         outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
