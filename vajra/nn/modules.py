@@ -867,7 +867,7 @@ class VajraMerudandaBhag7(nn.Module):
         return f"VajraMerudandaBhag7", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_dwcib}, {self.expansion_ratio}, {self.dwconv}]"
 
 class VajraGrivaBhag1(nn.Module):
-    def __init__(self, out_c, num_blocks=3, kernel_size=1, expansion_ratio=0.5, use_cbam=True, bottleneck_dw=False, use_rep_vgg_dw=False) -> None:
+    def __init__(self, out_c, num_blocks=3, kernel_size=1, expansion_ratio=0.5, use_cbam=False, bottleneck_dw=False, use_rep_vgg_dw=False) -> None:
         super().__init__()
         block = Bottleneck if not bottleneck_dw else MerudandaDW
         hidden_c = int(out_c * expansion_ratio)
