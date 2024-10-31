@@ -1350,6 +1350,39 @@ class VajraStambh(nn.Module):
     def get_module_info(self):
         return f"VajraStambh", f"[{self.in_c}, {self.mid_c}, {self.out_c}]"
 
+class VajraStambhV2(nn.Module):
+    """ Inspired by the Stem Block of PPHGNetV2 """
+    def __init__(self, in_c, mid_c, out_c):
+        super().__init__()
+        self.in_c = in_c
+        self.mid_c = mid_c
+        self.out_c = out_c
+        self.stem1 = ConvBNAct(in_c, mid_c, kernel_size=3, stride=2, act="silu")
+        self.stem2a = ConvBNAct(mid_c, mid_c // 2, kernel_size=2, stride=1, padding=0, act="silu")
+        self.stem2b = ConvBNAct(mid_c // 2, mid_c, kernel_size=2, stride=1, padding=0, act="silu")
+        self.stem3 = ConvBNAct(mid_c * 2, mid_c, kernel_size=3, stride=2, act="silu")
+        self.stem4 = ConvBNAct(mid_c, out_c, kernel_size=1, stride=1, act="silu")
+
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=1, padding=0, ceil_mode=False)
+
+        self.pad1 = nn.ConstantPad2d((0, 1, 0, 1), 0)
+        self.pad2 = nn.ConstantPad2d((0, 1, 0, 1), 0)
+
+    def forward(self, x):
+        stem1 = self.stem1(x)
+        x = self.pad1(stem1)
+        x2 = self.stem2a(x)
+        x2 = self.pad2(x2)
+        x2 = self.stem2b(x2)
+        x1 = self.pool(x)
+        x = torch.cat([x1, x2], dim=1)
+        x = self.stem3(x)
+        x = self.stem4(x)
+        return stem1, x
+
+    def get_module_info(self):
+        return f"VajraStambhV2", f"[{self.in_c}, {self.mid_c}, {self.out_c}]"
+
 class VajraV2DownsampleStem(nn.Module):
     def __init__(self, in_c, mid_c, out_c):
         super().__init__()
