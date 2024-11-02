@@ -51,7 +51,7 @@ class VajraV3Model(nn.Module):
         self.vajra_neck3 = VajraMerudandaBhag1(channels_list[10], channels_list[10], num_repeats[6], True, 1, True)
 
         self.pyramid_pool_neck2 = Sanlayan(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=1, use_cbam=False, expansion_ratio=1.0)
-        self.neck_conv2 = ConvBNAct(channels_list[11], channels_list[12])
+        self.neck_conv2 = ConvBNAct(channels_list[11], channels_list[12], 2, 3)
         self.vajra_neck4 = VajraMerudandaBhag1(channels_list[12], channels_list[12], num_repeats[7], True, 1, True)
 
     def forward(self, x):
