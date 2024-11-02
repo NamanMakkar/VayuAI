@@ -304,6 +304,56 @@ class Bottleneck(nn.Module):
     def get_module_info(self):
         return "Bottleneck", f"[{self.in_c}, {self.out_c}, {self.shortcut}, {self.kernel_size}, {self.expansion_ratio}, {self.groups}, {act_table[self.act]}]"
 
+class BottleneckDW(nn.Module):
+    """Bottleneck with 2x 3x3 convolutions and 2x 3x3 DW convolutions"""
+
+    def __init__(self, in_c, out_c, shortcut=True, kernel_size=(3,3), expansion_ratio=0.5, groups=1, act="silu"):  # ch_in, ch_out, shortcut, groups, kernels, expand
+        super().__init__()
+        hidden_c = int(out_c * expansion_ratio)  # hidden channels
+        self.in_c = in_c
+        self.out_c = out_c
+        self.shortcut=shortcut
+        self.kernel_size=kernel_size
+        self.expansion_ratio=expansion_ratio
+        self.groups=groups
+        self.act = act
+        self.conv1 = ConvBNAct(in_c, hidden_c, kernel_size=kernel_size[0], stride=1, act=act)
+        self.conv2 = DepthwiseConvBNAct(hidden_c, hidden_c, 1, 3)
+        self.conv3 = DepthwiseConvBNAct(hidden_c, hidden_c, 1, 3)
+        self.conv4 = ConvBNAct(hidden_c, out_c, kernel_size=kernel_size[1], stride=1, groups=groups, act=act)
+        self.add = shortcut and in_c == out_c
+
+    def forward(self, x):
+        return x + self.conv2(self.conv3(self.conv2(self.conv1(x)))) if self.add else self.conv2(self.conv3(self.conv2(self.conv1(x))))
+    
+    def get_module_info(self):
+        return "BottleneckDW", f"[{self.in_c}, {self.out_c}, {self.shortcut}, {self.kernel_size}, {self.expansion_ratio}, {self.groups}, {act_table[self.act]}]"
+
+class RepBottleneckDW(nn.Module):
+    """Bottleneck with 2x 3x3 convolutions and 2x RepVGGDW convolutions"""
+
+    def __init__(self, in_c, out_c, shortcut=True, kernel_size=(3,3), expansion_ratio=0.5, groups=1, act="silu"):  # ch_in, ch_out, shortcut, groups, kernels, expand
+        super().__init__()
+        hidden_c = int(out_c * expansion_ratio)  # hidden channels
+        self.in_c = in_c
+        self.out_c = out_c
+        self.shortcut=shortcut
+        self.kernel_size=kernel_size
+        self.expansion_ratio=expansion_ratio
+        self.groups=groups
+        self.act = act
+        self.conv1 = ConvBNAct(in_c, hidden_c, kernel_size=kernel_size[0], stride=1, act=act)
+        self.conv2 = RepVGGDW(hidden_c)
+        self.conv3 = RepVGGDW(hidden_c)
+        self.conv4 = ConvBNAct(hidden_c, out_c, kernel_size=kernel_size[1], stride=1, groups=groups, act=act)
+        self.add = shortcut and in_c == out_c
+
+    def forward(self, x):
+        return x + self.conv2(self.conv3(self.conv2(self.conv1(x)))) if self.add else self.conv2(self.conv3(self.conv2(self.conv1(x))))
+    
+    def get_module_info(self):
+        return "RepBottleneckDW", f"[{self.in_c}, {self.out_c}, {self.shortcut}, {self.kernel_size}, {self.expansion_ratio}, {self.groups}, {act_table[self.act]}]"
+
 class BottleneckResNet(nn.Module):
     expansion: int = 4
 
@@ -577,6 +627,11 @@ class MerudandaDW(nn.Module):
     def __init__(self, in_c, out_c, shortcut=True, expansion_ratio=0.5, use_rep_vgg_dw=False):
         super().__init__()
         hidden_c = int(out_c * expansion_ratio)
+        self.in_c = in_c
+        self.out_c = out_c
+        self.shortcut=shortcut
+        self.expansion_ratio = expansion_ratio
+        self.use_rep_vgg_dw = use_rep_vgg_dw
         self.add = shortcut and in_c == out_c
         self.block = nn.Sequential(
             DepthwiseConvBNAct(in_c, in_c, kernel_size=3),
@@ -589,6 +644,9 @@ class MerudandaDW(nn.Module):
     def forward(self, x):
         y = self.block(x)
         return x + y if self.add else y
+    
+    def get_module_info(self):
+        return "MerudandaDW", f"[{self.in_c}, {self.out_c}, {self.shortcut}, {self.expansion_ratio}, {self.use_rep_vgg_dw}]"
     
 class ADown(nn.Module):
     def __init__(self, in_c, out_c):

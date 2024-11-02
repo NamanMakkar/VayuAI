@@ -26,17 +26,18 @@ class VajraV3Model(nn.Module):
                  num_repeats=[2, 2, 2, 2, 2, 2, 2, 2],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [3, 5, -1], -1, [5, 3, -1], -1, [9, 11, -1], -1, -1, [11, 13, -1], -1, -1, [13, 15, 17]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, [2, 4, 6, -1], -1, [2, 4, 6, -1], -1, [2, 6, 4, -1], -1, -1, [12, -1], -1, -1, [10, -1], -1, [14, 17, 20]]
         # Backbone
-        self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
+        self.conv1 = ConvBNAct(in_channels, channels_list[0], 2, 3)
+        self.conv2 = ConvBNAct(channels_list[0], channels_list[1], 2, 3)
         self.vajra_block1 = VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3) # stride 4
-        self.pool1 = ConvBNAct(channels_list[1], channels_list[2], 2, 3) #ADown(channels_list[1], channels_list[2])
+        self.pool1 = ConvBNAct(channels_list[1], channels_list[2], 2, 3)
         self.vajra_block2 = VajraMerudandaBhag1(channels_list[2], channels_list[2], num_repeats[1], True, 1, expansion_ratio=0.5) # stride 8
-        self.pool2 = ConvBNAct(channels_list[2], channels_list[3], 2, 3) #ADown(channels_list[2], channels_list[3])
+        self.pool2 = ConvBNAct(channels_list[2], channels_list[3], 2, 3)
         self.vajra_block3 = VajraMerudandaBhag1(channels_list[3], channels_list[3], num_repeats[2], True, 1, expansion_ratio=0.5, bottleneck_dwcib=True) # stride 16
-        self.pool3 = ConvBNAct(channels_list[3], channels_list[4], 2, 3) #ADown(channels_list[3], channels_list[4])
+        self.pool3 = ConvBNAct(channels_list[3], channels_list[4], 2, 3)
         self.vajra_block4 = VajraMerudandaBhag1(channels_list[4], channels_list[4], num_repeats[3], True, 1, expansion_ratio=0.5, bottleneck_dwcib=True) # stride 32
-        self.pyramid_pool = Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, use_cbam=False, expansion_ratio=1.0)
+        self.pyramid_pool = Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=1, use_cbam=False, expansion_ratio=1.0)
         self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2, 1)
         # Neck
         self.fusion4cbam = ChatushtayaSanlayan(in_c=channels_list[1:5], out_c=channels_list[6], use_cbam=False, expansion_ratio=0.5)
@@ -47,16 +48,17 @@ class VajraV3Model(nn.Module):
 
         self.pyramid_pool_neck1 = Sanlayan(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=1, use_cbam=False, expansion_ratio=1.0)
         self.neck_conv1 = ConvBNAct(channels_list[9], channels_list[10], 2, 3)
-        self.vajra_neck3 = VajraMerudandaBhag1(channels_list[10], channels_list[10], num_repeats[6], True, 1, True) #VajraGrivaBhag1(channels_list[10], num_repeats[6], 1, 0.5, False)
+        self.vajra_neck3 = VajraMerudandaBhag1(channels_list[10], channels_list[10], num_repeats[6], True, 1, True)
 
         self.pyramid_pool_neck2 = Sanlayan(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=1, use_cbam=False, expansion_ratio=1.0)
         self.neck_conv2 = ConvBNAct(channels_list[11], channels_list[12])
-        self.vajra_neck4 = VajraMerudandaBhag1(channels_list[12], channels_list[12], num_repeats[7], True, 1, True) #VajraGrivaBhag1(channels_list[12], num_repeats[7], 1, 0.5, False)
+        self.vajra_neck4 = VajraMerudandaBhag1(channels_list[12], channels_list[12], num_repeats[7], True, 1, True)
 
     def forward(self, x):
         # Backbone
-        stem = self.stem(x)
-        vajra1 = self.vajra_block1(stem)
+        conv1 = self.conv1(x)
+        conv2 = self.conv2(conv1)
+        vajra1 = self.vajra_block1(conv2)
 
         pool1 = self.pool1(vajra1)
         vajra2 = self.vajra_block2(pool1)

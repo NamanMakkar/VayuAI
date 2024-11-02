@@ -26,17 +26,18 @@ class VajraV2Model(nn.Module):
                  num_repeats=[2, 2, 2, 2, 2, 2, 2, 2],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], -1, [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [5 + sum(num_repeats[:4]), 6 + sum(num_repeats[:5]), -1], -1, -1, [6 + sum(num_repeats[:5]), 7 + sum(num_repeats[:6]), -1], -1, -1, [7 + sum(num_repeats[:6]), 9 + sum(num_repeats[:7]), 11 + sum(num_repeats)]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, [2, 4, 6, -1], -1, [2, 4, 6, -1], -1, [2, 6, 4, -1], -1, [6 + sum(num_repeats[:4]), 7 + sum(num_repeats[:5]), -1], -1, -1, [7 + sum(num_repeats[:5]), 8 + sum(num_repeats[:6]), -1], -1, -1, [8 + sum(num_repeats[:6]), 10 + sum(num_repeats[:7]), 12 + sum(num_repeats)]]
         # Backbone
-        self.stem = VajraStambhV2(in_channels, channels_list[1])
+        self.conv1 = ConvBNAct(in_channels, channels_list[0], 2, 3)
+        self.conv2 = ConvBNAct(channels_list[0], channels_list[1], 2, 3)
         self.block1 = nn.Sequential(*[Bottleneck(channels_list[1], channels_list[1], True) for _ in range(num_repeats[0])]) # stride 4
-        self.pool1 = ConvBNAct(channels_list[1], channels_list[2], 2, 3)
+        self.conv3 = ConvBNAct(channels_list[1], channels_list[2], 2, 3)
         self.block2 = nn.Sequential(*[Bottleneck(channels_list[2], channels_list[2], True) for _ in range(num_repeats[1])]) # stride 8
-        self.pool2 = ConvBNAct(channels_list[2], channels_list[3], 2, 3)
+        self.conv4 = ConvBNAct(channels_list[2], channels_list[3], 2, 3)
         self.block3 = nn.Sequential(*[Bottleneck(channels_list[3], channels_list[3], True) for _ in range(num_repeats[2])]) # stride 16
-        self.pool3 = ConvBNAct(channels_list[3], channels_list[4], 2, 3)
+        self.conv5 = ConvBNAct(channels_list[3], channels_list[4], 2, 3)
         self.block4 = nn.Sequential(*[Bottleneck(channels_list[4], channels_list[4], True) for _ in range(num_repeats[3])]) # stride 32
-        self.pyramid_pool = Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, use_cbam=False, expansion_ratio=1.0)
+        self.pyramid_pool = Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=1, use_cbam=False, expansion_ratio=1.0)
         self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2)
         # Neck
         self.fusion4cbam = ChatushtayaSanlayan(in_c=channels_list[1:5], out_c=channels_list[6], use_cbam=False, expansion_ratio=1.0)
@@ -47,7 +48,7 @@ class VajraV2Model(nn.Module):
 
         self.pyramid_pool_neck1 = Sanlayan(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=1, use_cbam=False, expansion_ratio=1.0)
         self.neck_conv1 = ConvBNAct(channels_list[9], channels_list[10], 2, 3)
-        self.vajra_neck3 = nn.Sequential(*[Bottleneck(channels_list[10], channels_list[10], True) for _ in range(num_repeats[6])]) #VajraGrivaBhag1(channels_list[10], num_repeats[6], 1, 0.5, False)
+        self.vajra_neck3 = nn.Sequential(*[Bottleneck(channels_list[10], channels_list[10], True) for _ in range(num_repeats[6])])
 
         self.pyramid_pool_neck2 = Sanlayan(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=1, use_cbam=False, expansion_ratio=1.0)
         self.neck_conv2 = ConvBNAct(channels_list[11], channels_list[12], 2, 3)
@@ -55,19 +56,20 @@ class VajraV2Model(nn.Module):
 
     def forward(self, x):
         # Backbone
-        stem = self.stem(x)
-        vajra1 = self.block1(stem)
-        vajra1 = stem + vajra1
+        conv1 = self.conv1(x)
+        conv2 = self.conv2(conv1)
+        vajra1 = self.block1(conv2)
+        vajra1 = conv2 + vajra1
 
-        pool1 = self.pool1(vajra1)
+        pool1 = self.conv3(vajra1)
         vajra2 = self.block2(pool1)
         vajra2 = vajra2 + pool1
 
-        pool2 = self.pool2(vajra2)
+        pool2 = self.conv4(vajra2)
         vajra3 = self.block3(pool2)
         vajra3 = vajra3 + pool2
 
-        pool3 = self.pool3(vajra3)
+        pool3 = self.conv5(vajra3)
         vajra4 = self.block4(pool3)
         vajra4 = vajra4 + pool3
 
