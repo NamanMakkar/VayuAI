@@ -35,7 +35,7 @@ class VajraV1Model(nn.Module):
         super().__init__()
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], -1, [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, -1, [11, -1], -1, -1, [9, -1], -1, [13, 16, 19]]
         # Backbone
-        self.stem = VajraStambh(in_channels, channels_list[1], channels_list[0])
+        self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
         self.vajra_block1 = VajraMerudandaBhag2(channels_list[1], channels_list[2], num_repeats[0], True, 3, 0.25) # stride 4
         self.pool1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
         self.vajra_block2 = VajraMerudandaBhag2(channels_list[2], channels_list[3], num_repeats[1], True, 1, 0.25) # stride 8
