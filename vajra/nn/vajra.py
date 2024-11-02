@@ -33,10 +33,9 @@ class VajraV1Model(nn.Module):
                  num_repeats=[2, 2, 2, 2, 2, 2, 2, 2],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, [2, 4, 6, -1], -1, [2, 4, 6, -1], -1, [2, 6, 4, -1], -1, -1, [12, -1], -1, -1, [10, -1], -1, [14, 17, 20]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], -1, [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, -1, [11, -1], -1, -1, [9, -1], -1, [13, 16, 19]]
         # Backbone
-        self.conv1 = ConvBNAct(in_channels, channels_list[0], 2, 3)
-        self.conv2 = ConvBNAct(channels_list[0], channels_list[1], 2, 3)
+        self.stem = VajraStambh(in_channels, channels_list[1], channels_list[0])
         self.vajra_block1 = VajraMerudandaBhag2(channels_list[1], channels_list[2], num_repeats[0], True, 3, 0.25) # stride 4
         self.pool1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
         self.vajra_block2 = VajraMerudandaBhag2(channels_list[2], channels_list[3], num_repeats[1], True, 1, 0.25) # stride 8
@@ -63,9 +62,8 @@ class VajraV1Model(nn.Module):
 
     def forward(self, x):
         # Backbone
-        conv1 = self.conv1(x)
-        conv2 = self.conv2(conv1)
-        vajra1 = self.vajra_block1(conv2)
+        stem = self.stem(x)
+        vajra1 = self.vajra_block1(stem)
 
         pool1 = self.pool1(vajra1)
         vajra2 = self.vajra_block2(pool1)
