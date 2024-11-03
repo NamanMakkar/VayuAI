@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from pathlib import Path
 from vajra.checks import check_suffix, check_requirements
 from vajra.utils.downloads import attempt_download_asset
-from vajra.nn.modules import VajraStemBlock, VajraV2StemBlock, VajraStambh, VajraStambhV2, ADown, Bottleneck, VajraMerudandaBhag1, VajraMerudandaBhag7, VajraMerudandaBhag2, VajraMerudandaBhag3, VajraGrivaBhag1, VajraGrivaBhag2, VajraMBConvBlock, VajraConvNeXtBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, MaxPool, ImagePoolingAttention, VajraWindowAttnBottleneck, VajraV2BottleneckBlock, AttentionBottleneck
+from vajra.nn.modules import VajraStemBlock, VajraV2StemBlock, VajraStambh, VajraStambhV2, ADown, Bottleneck, MerudandaDW, VajraMerudandaBhag1, VajraMerudandaBhag7, VajraMerudandaBhag2, VajraMerudandaBhag3, VajraGrivaBhag1, VajraGrivaBhag2, VajraMBConvBlock, VajraConvNeXtBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, MaxPool, ImagePoolingAttention, VajraWindowAttnBottleneck, VajraV2BottleneckBlock, AttentionBottleneck
 from vajra.nn.head import Detection, OBBDetection, Segementation, Classification, PoseDetection, WorldDetection, Panoptic
 from vajra.utils import LOGGER, HYPERPARAMS_CFG_DICT, HYPERPARAMS_CFG_KEYS
 from vajra.utils.torch_utils import model_info, initialize_weights, fuse_conv_and_bn, time_sync, intersect_dicts, scale_img
@@ -26,22 +26,21 @@ class VajraV2Model(nn.Module):
                  num_repeats=[2, 2, 2, 2, 2, 2, 2, 2],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, [2, 4, 6, -1], -1, [2, 4, 6, -1], -1, [2, 6, 4, -1], -1, [6 + sum(num_repeats[:4]), 7 + sum(num_repeats[:5]), -1], -1, -1, [7 + sum(num_repeats[:5]), 8 + sum(num_repeats[:6]), -1], -1, -1, [8 + sum(num_repeats[:6]), 10 + sum(num_repeats[:7]), 12 + sum(num_repeats)]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], -1, [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [5 + sum(num_repeats[:4]), 6 + sum(num_repeats[:5]), -1], -1, -1, [6 + sum(num_repeats[:5]), 7 + sum(num_repeats[:6]), -1], -1, -1, [7 + sum(num_repeats[:6]), 9 + sum(num_repeats[:7]), 11 + sum(num_repeats)]]
         # Backbone
-        self.conv1 = ConvBNAct(in_channels, channels_list[0], 2, 3)
-        self.conv2 = ConvBNAct(channels_list[0], channels_list[1], 2, 3)
+        self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
         self.block1 = nn.Sequential(*[Bottleneck(channels_list[1], channels_list[1], True) for _ in range(num_repeats[0])]) # stride 4
         self.conv3 = ConvBNAct(channels_list[1], channels_list[2], 2, 3)
         self.block2 = nn.Sequential(*[Bottleneck(channels_list[2], channels_list[2], True) for _ in range(num_repeats[1])]) # stride 8
         self.conv4 = ConvBNAct(channels_list[2], channels_list[3], 2, 3)
         self.block3 = nn.Sequential(*[Bottleneck(channels_list[3], channels_list[3], True) for _ in range(num_repeats[2])]) # stride 16
         self.conv5 = ConvBNAct(channels_list[3], channels_list[4], 2, 3)
-        self.block4 = nn.Sequential(*[Bottleneck(channels_list[4], channels_list[4], True) for _ in range(num_repeats[3])]) # stride 32
+        self.block4 = nn.Sequential(*[MerudandaDW(channels_list[4], channels_list[4], True, 0.5, True) for _ in range(num_repeats[3])]) # stride 32
         self.pyramid_pool = Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=1, use_cbam=False, expansion_ratio=1.0)
         self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2)
         # Neck
         self.fusion4cbam = ChatushtayaSanlayan(in_c=channels_list[1:5], out_c=channels_list[6], use_cbam=False, expansion_ratio=1.0)
-        self.vajra_neck1 = nn.Sequential(*[Bottleneck(channels_list[6], channels_list[6], True) for _ in range(num_repeats[4])])
+        self.vajra_neck1 = nn.Sequential(*[MerudandaDW(channels_list[6], channels_list[6], True) for _ in range(num_repeats[4])])
 
         self.fusion4cbam2 = ChatushtayaSanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[8], use_cbam=False, expansion_ratio=1.0)
         self.vajra_neck2 = nn.Sequential(*[Bottleneck(channels_list[8], channels_list[8], True) for _ in range(num_repeats[5])])
