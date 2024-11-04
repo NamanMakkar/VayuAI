@@ -54,7 +54,7 @@ class Detection(nn.Module):
         self.reg_max = 16
         self.num_outputs_per_anchor = self.num_classes + self.reg_max * 4
         self.stride = torch.zeros(self.num_det_layers)
-        c2 = max((8, in_channels[0] // 4, self.reg_max * 4))
+        c2 = max((8, in_channels[0] // 2, self.reg_max * 4))
         c3 = max(in_channels[0], min(self.num_classes, 100))
         self.branch_det = nn.ModuleList(
             nn.Sequential(ConvBNAct(ch, c2, kernel_size=3),
