@@ -3,10 +3,11 @@
 import math
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from pathlib import Path
 from vajra.checks import check_suffix, check_requirements
 from vajra.utils.downloads import attempt_download_asset
-from vajra.nn.modules import ADown, VajraStemBlock, VajraMerudandaBhag1, Concatenate, VajraMerudandaBhag3, VajraMerudandaBhag4, VajraMerudandaBhag5, VajraMerudandaBhag6, VajraGrivaBhag1, VajraGrivaBhag2, VajraStambh, VajraStambhV2, VajraMerudandaBhag2, VajraAttentionBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, DepthwiseConvBNAct, MaxPool, ImagePoolingAttention, AttentionBottleneck, AttentionBlock, MerudandaDW, RepVGGDW
+from vajra.nn.modules import ADown, VajraStemBlock, VajraMerudandaBhag1, Concatenate, SanlayanSPPF, VajraMerudandaBhag3, VajraMerudandaBhag4, VajraMerudandaBhag5, VajraMerudandaBhag6, VajraGrivaBhag1, VajraGrivaBhag2, VajraStambh, VajraStambhV2, VajraMerudandaBhag2, VajraAttentionBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, DepthwiseConvBNAct, MaxPool, ImagePoolingAttention, AttentionBottleneck, AttentionBlock, MerudandaDW, RepVGGDW
 from vajra.nn.head import Detection, OBBDetection, Segementation, Classification, PoseDetection, WorldDetection, Panoptic, DEYODetection
 from vajra.nn.vajrav2 import VajraV2Model, VajraV2CLSModel
 from vajra.nn.vajrav3 import VajraV3Model, VajraV3CLSModel
@@ -43,14 +44,14 @@ class VajraV1Model(nn.Module):
         self.vajra_block3 = VajraMerudandaBhag2(channels_list[3], channels_list[4], num_repeats[2], True, 1, 0.5, True) # stride 16
         self.pool3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
         self.vajra_block4 = VajraMerudandaBhag2(channels_list[4], channels_list[4], num_repeats[3], True, 1, 0.5, True) # stride 32
-        self.pyramid_pool = Sanlayan(in_c=[channels_list[2], channels_list[3], channels_list[4], channels_list[4]], out_c=channels_list[4], stride=1, use_cbam=False, expansion_ratio=1.0)
+        self.pyramid_pool = SanlayanSPPF(in_c=[channels_list[2], channels_list[3], channels_list[4], channels_list[4]], out_c=channels_list[4], stride=1, expansion_ratio=1.0)
         self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2, 1)
         # Neck
         self.fusion4cbam = ChatushtayaSanlayan(in_c=[channels_list[2], channels_list[3], channels_list[4], channels_list[4]], out_c=channels_list[6], use_cbam=False, expansion_ratio=0.5)
-        self.vajra_neck1 = VajraGrivaBhag2(channels_list[6], num_repeats[4], 1, 2, False)
+        self.vajra_neck1 = VajraGrivaBhag2(channels_list[6], num_repeats[4], 1)
 
         self.fusion4cbam2 = ChatushtayaSanlayan(in_c=[channels_list[2], channels_list[3], channels_list[4], channels_list[6]], out_c=channels_list[8], use_cbam=False, expansion_ratio=0.5)
-        self.vajra_neck2 = VajraGrivaBhag2(channels_list[8], num_repeats[5], 1, 2, False)
+        self.vajra_neck2 = VajraGrivaBhag2(channels_list[8], num_repeats[5], 1)
 
         self.neck_conv1 = ConvBNAct(channels_list[8], channels_list[9], 2, 3)
         self.pyramid_pool_neck1 = Concatenate(in_c=[channels_list[6], channels_list[9]], dimension=1) 
@@ -76,9 +77,16 @@ class VajraV1Model(nn.Module):
         pyramid_pool_backbone = self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
         attn_block = self.attn_block(pyramid_pool_backbone)
         # Neck
+
+        #_, _, H3, W3 = vajra3.shape
+        #upsample1 = F.interpolate(attn_block, size=(H3, W3), mode="nearest")
+        #concat_neck1 = self.concat1([vajra3, upsample1])
         fusion4 = self.fusion4cbam([vajra1, vajra2, vajra3, attn_block])
         vajra_neck1 = self.vajra_neck1(fusion4)
 
+        #_, _, H2, W2 = vajra2.shape
+        #upsample2 = F.interpolate(vajra_neck1, size=(H2, W2), mode="nearest")
+        #concat_neck2 = self.concat2([vajra2, upsample2])
         fusion4_2 = self.fusion4cbam2([vajra1, vajra3, vajra2, vajra_neck1])
         vajra_neck2 = self.vajra_neck2(fusion4_2)
 

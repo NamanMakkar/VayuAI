@@ -760,7 +760,7 @@ class VajraMerudandaBhag1(nn.Module):
         return f"VajraMerudandaBhag1", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_dwcib}, {self.expansion_ratio}, {self.dwconv}, {self.use_cbam}, {self.use_rep_vgg_dw}]"
 
 class VajraMerudandaBhag3(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=3, kernel_size=1, shortcut=False, expansion_ratio = 0.5, use_cbam = False, bhag1 = False) -> None:
+    def __init__(self, in_c, out_c, num_blocks=3, kernel_size=1, shortcut=False, expansion_ratio = 0.5, use_cbam = False) -> None:
         super().__init__()
         self.in_c = in_c
         self.out_c = out_c
@@ -768,12 +768,10 @@ class VajraMerudandaBhag3(nn.Module):
         self.shortcut = shortcut
         self.use_cbam = use_cbam
         self.expansion_ratio = expansion_ratio
-        self.bhag1 = bhag1
-
         hidden_c = int(out_c * expansion_ratio)
-        block = VajraMerudandaBhag2
+        block = C3
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, 2, True, kernel_size=kernel_size, expansion_ratio=0.5, bhag1=bhag1) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, 2, True, 0.5, (3, 3)) for _ in range(num_blocks)) #nn.ModuleList(block(hidden_c, hidden_c, 2, True, kernel_size=kernel_size, expansion_ratio=0.5, bhag1=bhag1) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
         self.add = shortcut and in_c == out_c
@@ -786,7 +784,7 @@ class VajraMerudandaBhag3(nn.Module):
         return x + cbam if self.add else y + cbam
 
     def get_module_info(self):
-        return f"VajraMerudandaBhag3", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.expansion_ratio}, {self.use_cbam}, {self.bhag1}]"
+        return f"VajraMerudandaBhag3", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.expansion_ratio}, {self.use_cbam}]"
     
 class VajraMerudandaBhag4(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=3, shortcut=False) -> None:
@@ -1432,7 +1430,7 @@ class ChatushtayaSanlayan(nn.Module):
         return f"ChatushtayaSanlayan", f"[{self.in_c}, {self.out_c}, {self.use_cbam}, {self.expansion_ratio}]"
 
 class Sanlayan(nn.Module):
-    def __init__(self, in_c, out_c, stride=2, use_cbam=True, expansion_ratio=1.0, kernel_size=1) -> None:
+    def __init__(self, in_c, out_c, stride=2, use_cbam=True, expansion_ratio=1.0, kernel_size=1, use_sppf=False) -> None:
         super().__init__()
         self.in_c = in_c
         self.out_c = out_c
@@ -1440,6 +1438,7 @@ class Sanlayan(nn.Module):
         total_c = sum(in_c)
         self.use_cbam = use_cbam
         self.expansion_ratio = expansion_ratio
+        self.sppf = SPPF
         self.out_channels = int(out_c * expansion_ratio)
         self.cbam = CBAM(self.out_channels) if self.use_cbam else nn.Identity()
         self.conv_fused = ConvBNAct(total_c, self.out_channels, 1, kernel_size=kernel_size)
@@ -1574,10 +1573,32 @@ class SPPF(nn.Module):
         self.maxpool = nn.MaxPool2d(kernel_size=kernel_size, stride=1, padding=kernel_size // 2)
 
     def forward(self, x):
-        x = self.conv1(x)
-        y1 = self.maxpool(x)
-        y2 = self.maxpool(y1)
-        return self.conv2(torch.cat((x, y1, y2, self.maxpool(y2)), 1))
+        y = [self.conv1(x)]
+        y.extend(self.maxpool(y[-1]) for _ in range(3))
+        return self.conv2(torch.cat(y, 1))
+
+class SanlayanSPPF(nn.Module):
+    def __init__(self, in_c, out_c, stride=2, expansion_ratio=1.0) -> None:
+        super().__init__()
+        self.in_c = in_c
+        self.out_c = out_c
+        self.stride = stride
+        total_c = sum(in_c)
+        self.expansion_ratio = expansion_ratio
+        self.out_channels = int(out_c * expansion_ratio)
+        self.sppf = SPPF(in_c=total_c, out_c=self.out_channels, kernel_size=5)
+    
+    def forward(self, inputs):
+        B, C, H, W = inputs[-1].shape
+        H = (H - 1) // self.stride + 1
+        W = (W - 1) // self.stride + 1
+        out = [F.interpolate(inp, size=(H, W), mode="nearest") for inp in inputs]
+        concatenated_out = torch.cat(out, dim=1)
+        sppf = self.sppf(concatenated_out)
+        return sppf
+
+    def get_module_info(self):
+        return f"SanlayanSPPF", f"[{self.in_c}, {self.out_c}, {self.stride}]"
 
 class MBConvEffNet(nn.Module):
     def __init__(self, in_c, out_c, stride=1, expansion_ratio=4, kernel_size=3) -> None:
