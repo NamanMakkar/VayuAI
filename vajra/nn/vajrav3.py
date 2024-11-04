@@ -26,7 +26,7 @@ class VajraV3Model(nn.Module):
                  num_repeats=[2, 2, 2, 2, 2, 2, 2, 2],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
         # Backbone
         self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
         self.vajra_block1 = VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3, False) # stride 4
@@ -38,7 +38,7 @@ class VajraV3Model(nn.Module):
         self.vajra_block3 = VajraMerudandaBhag1(channels_list[3], channels_list[3], num_repeats[2], True, 1, expansion_ratio=0.5, bottleneck_dwcib=True) # stride 16
         self.conv3 = ConvBNAct(channels_list[3], channels_list[4], 2, 3)
         #self.pool3 = MaxPool(2, 2)
-        self.vajra_block4 = VajraMerudandaBhag1(channels_list[4], channels_list[4], num_repeats[3], True, 1, expansion_ratio=0.5, bottleneck_dwcib=True) # stride 32
+        self.vajra_block4 = VajraMerudandaBhag1(channels_list[4], channels_list[4], num_repeats[3], True, 1, expansion_ratio=0.5, bottleneck_dwcib=True, use_rep_vgg_dw=True) # stride 32
         self.pyramid_pool = SanlayanSPPF(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, expansion_ratio=1.0)
         #self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2, 1)
         # Neck
@@ -54,7 +54,7 @@ class VajraV3Model(nn.Module):
 
         self.pyramid_pool_neck2 = Sanlayan(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[12], stride=2, use_cbam=False, expansion_ratio=0.5)
         #self.neck_conv2 = ConvBNAct(channels_list[11], channels_list[12], 2, 3)
-        self.vajra_neck4 = VajraGrivaBhag1(channels_list[12], num_repeats[7], 1, 0.5, False, True)
+        self.vajra_neck4 = VajraGrivaBhag1(channels_list[12], num_repeats[7], 1, 0.5, False, True, True)
 
     def forward(self, x):
         # Backbone
