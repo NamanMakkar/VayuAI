@@ -818,7 +818,7 @@ class VajraGrivaBhag3(nn.Module):
         return f"VajraGrivaBhag3", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.bottleneck_dwcib}, {self.expansion_ratio}, {self.dwconv}, {self.use_cbam}, {self.use_rep_vgg_dw}]"    
 
 class VajraMerudandaBhag4(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, expansion_ratio=0.5, bhag1=False, use_cbam=False) -> None:
+    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, expansion_ratio=0.5, bhag1=False, use_cbam=False, bottleneck_dw=False) -> None:
         super().__init__()
         block = VajraMerudandaBhag1 if bhag1 else Bottleneck
         hidden_c = int(out_c * expansion_ratio)
@@ -831,7 +831,7 @@ class VajraMerudandaBhag4(nn.Module):
         self.use_cbam = use_cbam
         self.kernel_size=kernel_size
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=0.5) for _ in range(num_blocks)) if block == Bottleneck else nn.ModuleList(block(hidden_c, hidden_c, 2, shortcut=True, kernel_size=1, expansion_ratio=0.5) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=0.5) for _ in range(num_blocks)) if block == Bottleneck else nn.ModuleList(block(hidden_c, hidden_c, 2, shortcut=True, kernel_size=1, expansion_ratio=0.5, bottleneck_dwcib=bottleneck_dw) for _ in range(num_blocks))
         self.conv2 = ConvBNAct((num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
         self.add = shortcut and in_c == out_c
@@ -1005,7 +1005,7 @@ class InnerBlock(nn.Module):
         return cbam + x if self.add else y + cbam
 
 class VajraMerudandaBhag2(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, expansion_ratio=0.5, bhag1=False, use_cbam=False) -> None:
+    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, expansion_ratio=0.5, bhag1=False, use_cbam=False, bottleneck_dw=False) -> None:
         super().__init__()
         block = VajraMerudandaBhag1 if bhag1 else Bottleneck
         hidden_c = int(out_c * expansion_ratio)
@@ -1018,7 +1018,7 @@ class VajraMerudandaBhag2(nn.Module):
         self.use_cbam = use_cbam
         self.kernel_size=kernel_size
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=0.5) for _ in range(num_blocks)) if block == Bottleneck else nn.ModuleList(block(hidden_c, hidden_c, 2, shortcut=True, kernel_size=1, expansion_ratio=0.5) for _ in range(num_blocks))
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=0.5) for _ in range(num_blocks)) if block == Bottleneck else nn.ModuleList(block(hidden_c, hidden_c, 2, shortcut=True, kernel_size=1, expansion_ratio=0.5, bottleneck_dwcib=bottleneck_dw) for _ in range(num_blocks))
         self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
         self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
         self.add = shortcut and in_c == out_c
@@ -1612,6 +1612,19 @@ class SPPF(nn.Module):
     
     def get_module_info(self):
         return "SPPF", f"[{self.in_c}, {self.out_c}, {self.kernel_size}]"
+
+class Upsample(nn.Module):
+    def __init__(self, scale_factor=2, mode="nearest"):
+        super().__init__()
+        self.scale_factor = scale_factor
+        self.mode = mode
+        self.upsample = nn.Upsample(scale_factor=scale_factor, mode=mode)
+
+    def forward(self, x):
+        return self.upsample(x)
+    
+    def get_module_info(self):
+        return "Upsample", f"[{self.scale_factor}, {self.mode}]"
 
 class SanlayanSPPF(nn.Module):
     def __init__(self, in_c, out_c, stride=2, expansion_ratio=1.0) -> None:
