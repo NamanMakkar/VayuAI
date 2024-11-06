@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from pathlib import Path
 from vajra.checks import check_suffix, check_requirements
 from vajra.utils.downloads import attempt_download_asset
-from vajra.nn.modules import VajraStemBlock, VajraV2StemBlock, VajraStambh, SPPF, Concatenate, VajraStambhV2, ADown, Bottleneck, MerudandaDW, VajraMerudandaBhag1, VajraMerudandaBhag7, VajraMerudandaBhag2, VajraMerudandaBhag3, VajraGrivaBhag1, VajraGrivaBhag2, VajraGrivaBhag3, VajraMerudandaBhag4, VajraMBConvBlock, VajraConvNeXtBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, MaxPool, ImagePoolingAttention, VajraWindowAttnBottleneck, VajraV2BottleneckBlock, AttentionBottleneck
+from vajra.nn.modules import VajraStemBlock, VajraV2StemBlock, VajraStambh, SPPF, Concatenate, VajraStambhV2, ADown, Bottleneck, MerudandaDW, VajraMerudandaBhag1, VajraMerudandaBhag7, VajraMerudandaBhag2, VajraMerudandaBhag3, VajraGrivaBhag1, VajraGrivaBhag2, VajraGrivaBhag3, VajraGrivaBhag4, VajraMerudandaBhag4, VajraMBConvBlock, VajraConvNeXtBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, MaxPool, ImagePoolingAttention, VajraWindowAttnBottleneck, VajraV2BottleneckBlock, AttentionBottleneck, AttentionBottleneckV2
 from vajra.nn.head import Detection, OBBDetection, Segementation, Classification, PoseDetection, WorldDetection, Panoptic
 from vajra.utils import LOGGER, HYPERPARAMS_CFG_DICT, HYPERPARAMS_CFG_KEYS
 from vajra.utils.torch_utils import model_info, initialize_weights, fuse_conv_and_bn, time_sync, intersect_dicts, scale_img
@@ -119,7 +119,7 @@ class VajraV2Model(nn.Module):
         self.pool3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
         self.vajra_block4 = VajraMerudandaBhag4(channels_list[4], channels_list[4], num_repeats[3], True, 1, bhag1=True) # stride 32
         self.pyramid_pool = SPPF(channels_list[4], channels_list[4]) #Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, use_cbam=False, expansion_ratio=1.0)
-        self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2)
+        self.attn_block = AttentionBottleneckV2(channels_list[4], channels_list[4], 2)
         # Neck
         self.concat1 = Concatenate(in_c=[channels_list[4], channels_list[4]], dimension=1)
         self.vajra_neck1 = VajraMerudandaBhag4(in_c=channels_list[4] + channels_list[4], out_c=channels_list[6], num_blocks=num_repeats[4], shortcut=True, kernel_size=1, bhag1=True)
@@ -127,12 +127,12 @@ class VajraV2Model(nn.Module):
         self.concat2 = Concatenate(in_c=[channels_list[6], channels_list[3]], dimension=1)
         self.vajra_neck2 = VajraMerudandaBhag4(in_c=channels_list[6] + channels_list[3], out_c=channels_list[8], num_blocks=num_repeats[5], kernel_size=1, shortcut=True, bhag1=True)
 
-        self.neck_conv1 = ConvBNAct(channels_list[8], channels_list[9], 2, 3)
-        self.concat3 = Concatenate(in_c=[channels_list[6], channels_list[9]], dimension=1)
+        self.neck_conv1 = ADown(channels_list[8], channels_list[9]) #ConvBNAct(channels_list[8], channels_list[9], 2, 3)
+        self.sanlayan = Concatenate(in_c=[channels_list[6], channels_list[9]], dimension=1) #Sanlayan(in_c=[channels_list[6], channels_list[8]], out_c=channels_list[10], stride=2, use_cbam=False, expansion_ratio=0.5)
         self.vajra_neck3 = VajraMerudandaBhag4(in_c=channels_list[6] + channels_list[9], out_c=channels_list[10], num_blocks=num_repeats[6], kernel_size=1, shortcut=True, bhag1=True)
 
-        self.neck_conv2 = ConvBNAct(channels_list[10], channels_list[11], 2, 3)
-        self.concat4 = Concatenate(in_c=[channels_list[11], channels_list[4]], dimension=1)
+        self.neck_conv2 = ADown(channels_list[10], channels_list[11]) #ConvBNAct(channels_list[10], channels_list[11], 2, 3)
+        self.sanlayan2 = Concatenate(in_c=[channels_list[11], channels_list[4]], dimension=1) #Sanlayan(in_c=[channels_list[8], channels_list[10]], out_c=channels_list[12], stride=2, use_cbam=False, expansion_ratio=0.5)
         self.vajra_neck4 = VajraMerudandaBhag4(in_c=channels_list[11] + channels_list[4], out_c=channels_list[12], num_blocks=num_repeats[7], kernel_size=1, shortcut=True, bhag1=True)
 
     def forward(self, x):
@@ -164,12 +164,12 @@ class VajraV2Model(nn.Module):
         #vajra_neck2 = vajra_neck2 + vajra2
 
         neck_conv1 = self.neck_conv1(vajra_neck2)
-        concat_neck3 = self.concat3([vajra_neck1, neck_conv1])
+        concat_neck3 = self.sanlayan([vajra_neck1, neck_conv1])
         vajra_neck3 = self.vajra_neck3(concat_neck3)
         vajra_neck3 = vajra_neck3 + vajra3 if self.vajra_neck3.out_c == self.vajra_block3.out_c else vajra_neck3
 
         neck_conv2 = self.neck_conv2(vajra_neck3)
-        concat_neck4 = self.concat4([attn_block, neck_conv2])
+        concat_neck4 = self.sanlayan2([attn_block, neck_conv2])
         vajra_neck4 = self.vajra_neck4(concat_neck4)
         vajra_neck4 = vajra_neck4 + attn_block
 

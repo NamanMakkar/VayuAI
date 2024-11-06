@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from pathlib import Path
 from vajra.checks import check_suffix, check_requirements
 from vajra.utils.downloads import attempt_download_asset
-from vajra.nn.modules import ADown, VajraStemBlock, VajraMerudandaBhag1, Concatenate, SanlayanSPPF, Upsample, SPPF, VajraMerudandaBhag3, VajraMerudandaBhag4, VajraMerudandaBhag5, VajraMerudandaBhag6, VajraGrivaBhag1, VajraGrivaBhag2, VajraStambh, VajraStambhV2, VajraMerudandaBhag2, VajraAttentionBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, DepthwiseConvBNAct, MaxPool, ImagePoolingAttention, AttentionBottleneck, AttentionBlock, MerudandaDW, RepVGGDW
+from vajra.nn.modules import ADown, VajraStemBlock, VajraMerudandaBhag1, Concatenate, SanlayanSPPF, Upsample, SPPF, VajraMerudandaBhag3, VajraGrivaBhag3, VajraMerudandaBhag4, VajraMerudandaBhag5, VajraMerudandaBhag6, VajraGrivaBhag1, VajraGrivaBhag2, VajraStambh, VajraStambhV2, VajraMerudandaBhag2, VajraAttentionBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, DepthwiseConvBNAct, MaxPool, ImagePoolingAttention, AttentionBottleneck, AttentionBottleneckV2, MerudandaDW, RepVGGDW
 from vajra.nn.head import Detection, OBBDetection, Segementation, Classification, PoseDetection, WorldDetection, Panoptic, DEYODetection
 from vajra.nn.vajrav2 import VajraV2Model, VajraV2CLSModel
 from vajra.nn.vajrav3 import VajraV3Model, VajraV3CLSModel
@@ -37,31 +37,31 @@ class VajraV1Model(nn.Module):
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, [5, -1], -1, -1, [3, -1], -1, -1, [11, -1], -1, -1, [9, -1], -1, [13, 16, 19]]
         # Backbone
         self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
-        self.vajra_block1 = VajraMerudandaBhag4(channels_list[1], channels_list[2], num_repeats[0], True, 1, 0.25, True) # stride 4
+        self.vajra_block1 = VajraMerudandaBhag3(channels_list[1], channels_list[2], num_repeats[0], 1, True, 0.25, False, True) # stride 4
         self.pool1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
-        self.vajra_block2 = VajraMerudandaBhag4(channels_list[2], channels_list[3], num_repeats[1], True, 1, 0.25, True) # stride 8
+        self.vajra_block2 = VajraMerudandaBhag3(channels_list[2], channels_list[3], num_repeats[1], 1, True, 0.25, False, True) # stride 8
         self.pool2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
-        self.vajra_block3 = VajraMerudandaBhag4(channels_list[3], channels_list[4], num_repeats[2], True, 1, bhag1=True) # stride 16
+        self.vajra_block3 = VajraMerudandaBhag3(channels_list[3], channels_list[4], num_repeats[2], 1, True, inner_block=True) # stride 16
         self.pool3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
-        self.vajra_block4 = VajraMerudandaBhag4(channels_list[4], channels_list[4], num_repeats[3], True, 1, bhag1=True) # stride 32
+        self.vajra_block4 = VajraMerudandaBhag3(channels_list[4], channels_list[4], num_repeats[3], 1, True, inner_block=True) # stride 32
         self.pyramid_pool = SPPF(channels_list[4], channels_list[4])
         self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2)
         # Neck
         self.upsample1 = Upsample(2, "nearest")
         self.concat1 = Concatenate(in_c=[channels_list[4], channels_list[4]], dimension=1)
-        self.vajra_neck1 = VajraMerudandaBhag4(in_c=channels_list[4] + channels_list[4], out_c=channels_list[6], num_blocks=num_repeats[4], shortcut=True, kernel_size=1, bhag1=True)
+        self.vajra_neck1 = VajraMerudandaBhag3(in_c=2 * channels_list[4], out_c=channels_list[6], num_blocks=num_repeats[4], kernel_size=1, shortcut=True, inner_block=True)
 
         self.upsample2 = Upsample(2, "nearest")
         self.concat2 = Concatenate(in_c=[channels_list[6], channels_list[3]], dimension=1)
-        self.vajra_neck2 = VajraMerudandaBhag4(in_c=channels_list[6] + channels_list[3], out_c=channels_list[8], num_blocks=num_repeats[5], kernel_size=1, shortcut=True, bhag1=True)
+        self.vajra_neck2 = VajraMerudandaBhag3(in_c=channels_list[6] + channels_list[3], out_c=channels_list[8], num_blocks=num_repeats[5], kernel_size=1, shortcut=True, inner_block=True)
 
         self.neck_conv1 = ConvBNAct(channels_list[8], channels_list[9], 2, 3)
         self.concat3 = Concatenate(in_c=[channels_list[6], channels_list[9]], dimension=1)
-        self.vajra_neck3 = VajraMerudandaBhag4(in_c=channels_list[6] + channels_list[9], out_c=channels_list[10], num_blocks=num_repeats[6], kernel_size=1, shortcut=True, bhag1=True)
+        self.vajra_neck3 = VajraMerudandaBhag3(in_c=channels_list[6] + channels_list[9], out_c=channels_list[10], num_blocks=num_repeats[6], kernel_size=1, shortcut=True, inner_block=True)
 
         self.neck_conv2 = ConvBNAct(channels_list[10], channels_list[11], 2, 3)
         self.concat4 = Concatenate(in_c=[channels_list[11], channels_list[4]], dimension=1)
-        self.vajra_neck4 = VajraMerudandaBhag4(in_c=channels_list[11] + channels_list[4], out_c=channels_list[12], num_blocks=num_repeats[7], kernel_size=1, shortcut=True, bhag1=True)
+        self.vajra_neck4 = VajraMerudandaBhag3(in_c=channels_list[4] + channels_list[11], out_c=channels_list[12], num_blocks=num_repeats[7], kernel_size=1, shortcut=True, inner_block=True)
 
     def forward(self, x):
         # Backbone
@@ -89,7 +89,6 @@ class VajraV1Model(nn.Module):
         neck_upsample2 = self.upsample2(vajra_neck1) #F.interpolate(vajra_neck1, size=(H2, W2), mode="nearest")
         concat_neck2 = self.concat2([vajra2, neck_upsample2])
         vajra_neck2 = self.vajra_neck2(concat_neck2)
-        #vajra_neck2 = vajra_neck2 + vajra2
 
         neck_conv1 = self.neck_conv1(vajra_neck2)
         concat_neck3 = self.concat3([vajra_neck1, neck_conv1])
@@ -416,7 +415,7 @@ class Model(nn.Module):
 
     def _apply(self, fn):
         self = super()._apply(fn)
-        head = self.head
+        head = self.model[-1]
         if isinstance(head, (Detection)):
             head.stride = fn(head.stride)
             head.anchors = fn(head.anchors)
@@ -460,7 +459,7 @@ class DetectionModel(Model):
         else:
             self.model, self.stride, self.layers, self.np_model = build_vajra(in_channels=channels, task=task, num_classes=self.num_classes, size=size, version=version, verbose=verbose, world=world, kpt_shape=kpt_shape, model_name=model_name)
         #LOGGER.info(f"Head Layer {self.model[-1].get_module_info()}\n")
-        self.head = self.model[-1]
+        #self.head = self.model[-1]
         self.task = task
         self.names = {i: f"{i}" for i in range(self.num_classes)}
         initialize_weights(self)

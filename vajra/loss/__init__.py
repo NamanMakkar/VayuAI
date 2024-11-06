@@ -84,8 +84,9 @@ class DetectionLoss:
     def __init__(self, model, tal_topk=10) -> None:
         device = next(model.parameters()).device
         self.bce = nn.BCEWithLogitsLoss(reduction='none')
-        self.use_dfl = model.head.reg_max > 1
-        self.reg_max = model.head.reg_max if model.head else 8
+        head = model.model[-1]
+        self.use_dfl = head.reg_max > 1
+        self.reg_max = head.reg_max if head else 16
         self.hyperparms = model.args
         self.stride = model.stride
         self.num_classes = model.num_classes
