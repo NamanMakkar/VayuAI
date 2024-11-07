@@ -768,6 +768,7 @@ class VajraMerudandaBhag3(nn.Module):
         self.shortcut = shortcut
         self.use_cbam = use_cbam
         self.expansion_ratio = expansion_ratio
+        self.inner_block = inner_block
         hidden_c = int(out_c * expansion_ratio)
         block = InnerBlock if inner_block else Bottleneck
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
@@ -784,7 +785,7 @@ class VajraMerudandaBhag3(nn.Module):
         return x + cbam if self.add else y + cbam
 
     def get_module_info(self):
-        return f"VajraMerudandaBhag3", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.expansion_ratio}, {self.use_cbam}]"
+        return f"VajraMerudandaBhag3", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.expansion_ratio}, {self.use_cbam}, {self.inner_block}]"
 
 class VajraGrivaBhag3(nn.Module):
     def __init__(self, out_c, num_blocks=3, shortcut=False, kernel_size=1, expansion_ratio=0.5, use_cbam=False, inner_block=False) -> None:
@@ -812,33 +813,33 @@ class VajraGrivaBhag3(nn.Module):
         return f"VajraGrivaBhag3", f"[{self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.expansion_ratio}, {self.use_cbam}]"    
 
 class VajraMerudandaBhag4(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, expansion_ratio=0.5, bhag1=False, use_cbam=False, bottleneck_dw=False) -> None:
+    def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, expansion_ratio=0.5, inner_block=False, num_bottleneck_blocks=2, use_cbam=False) -> None:
         super().__init__()
-        block = VajraMerudandaBhag1 if bhag1 else Bottleneck
+        block = InnerBlock if inner_block else Bottleneck
         hidden_c = int(out_c * expansion_ratio)
         self.in_c = in_c
         self.out_c = out_c
         self.expansion_ratio = expansion_ratio
         self.num_blocks=num_blocks
         self.shortcut=shortcut
-        self.bhag1 = bhag1
+        self.inner_block = inner_block
         self.use_cbam = use_cbam
         self.kernel_size=kernel_size
         self.conv1 = ConvBNAct(in_c, hidden_c, 1, kernel_size)
-        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=0.5) for _ in range(num_blocks)) if block == Bottleneck else nn.ModuleList(block(hidden_c, hidden_c, 2, shortcut=True, kernel_size=1, expansion_ratio=0.5, bottleneck_dwcib=bottleneck_dw) for _ in range(num_blocks))
-        self.conv2 = ConvBNAct((num_blocks + 1) * hidden_c, out_c, kernel_size=1, stride=1)
+        self.bottleneck_blocks = nn.ModuleList(block(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=0.5) for _ in range(num_blocks)) if block == Bottleneck else nn.ModuleList(block(hidden_c, hidden_c, num_bottleneck_blocks, shortcut=True, kernel_size=1, expansion_ratio=0.5) for _ in range(num_blocks))
+        self.conv2 = ConvBNAct((num_blocks) * hidden_c, out_c, kernel_size=1, stride=1)
         self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
         self.add = shortcut and in_c == out_c
 
     def forward(self, x):
         y = [self.conv1(x)]
         y.extend(bottleneck(y[-1]) for bottleneck in self.bottleneck_blocks)
-        y = self.conv2(torch.cat(y, 1))
+        y = self.conv2(torch.cat(y[1:], 1))
         cbam = self.cbam(y)
         return x + cbam if self.add else y + cbam
 
     def get_module_info(self):
-        return f"VajraMerudandaBhag4", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.expansion_ratio}, {self.bhag1}, {self.use_cbam}]"
+        return f"VajraMerudandaBhag4", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.expansion_ratio}, {self.inner_block}, {self.use_cbam}]"
 
 class VajraGrivaBhag4(nn.Module):
     def __init__(self, out_c, num_blocks=3, shortcut=False, kernel_size=1, expansion_ratio=0.5, bhag1=False, use_cbam=False, bottleneck_dw=False) -> None:
