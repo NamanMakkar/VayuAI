@@ -104,6 +104,80 @@ class VajraV1Model(nn.Module):
         outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
         return outputs
 
+class VajraV1DEYOModel(nn.Module):
+    def __init__(self,
+                 in_channels = 3,
+                 channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 128, 256, 256, 256, 256],
+                 num_repeats=[2, 2, 2, 2, 2, 2, 2, 2],
+                 inner_block_list=[False, False, True, True, False, False, False, True]
+                 ) -> None:
+        super().__init__()
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, [5, -1], -1, -1, [3, -1], -1, -1, [11, -1], -1, -1, [9, -1], -1, [13, 16, 19]]
+        # Backbone
+        self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
+        self.vajra_block1 = VajraMerudandaBhag3(channels_list[1], channels_list[2], num_repeats[0], 1, True, 0.25, False, inner_block_list[0]) # stride 4
+        self.pool1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
+        self.vajra_block2 = VajraMerudandaBhag3(channels_list[2], channels_list[3], num_repeats[1], 1, True, 0.25, False, inner_block_list[1]) # stride 8
+        self.pool2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
+        self.vajra_block3 = VajraMerudandaBhag3(channels_list[3], channels_list[4], num_repeats[2], 1, True, inner_block=inner_block_list[2]) # stride 16
+        self.pool3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
+        self.vajra_block4 = VajraMerudandaBhag3(channels_list[4], channels_list[4], num_repeats[3], 1, True, inner_block=inner_block_list[3]) # stride 32
+        self.pyramid_pool = SPPF(channels_list[4], channels_list[4])
+        self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2)
+        # Neck
+        self.upsample1 = Upsample(2, "nearest")
+        self.concat1 = Concatenate(in_c=[channels_list[4], channels_list[4]], dimension=1)
+        self.vajra_neck1 = VajraMerudandaBhag3(in_c=2 * channels_list[4], out_c=channels_list[6], num_blocks=num_repeats[4], kernel_size=1, shortcut=True, inner_block=inner_block_list[4])
+
+        self.upsample2 = Upsample(2, "nearest")
+        self.concat2 = Concatenate(in_c=[channels_list[6], channels_list[3]], dimension=1)
+        self.vajra_neck2 = VajraMerudandaBhag3(in_c=channels_list[6] + channels_list[3], out_c=channels_list[8], num_blocks=num_repeats[5], kernel_size=1, shortcut=True, inner_block=inner_block_list[5])
+
+        self.neck_conv1 = ConvBNAct(channels_list[8], channels_list[9], 2, 3)
+        self.concat3 = Concatenate(in_c=[channels_list[6], channels_list[9]], dimension=1)
+        self.vajra_neck3 = VajraMerudandaBhag3(in_c=channels_list[6] + channels_list[9], out_c=channels_list[10], num_blocks=num_repeats[6], kernel_size=1, shortcut=True, inner_block=inner_block_list[6])
+
+        self.neck_conv2 = ConvBNAct(channels_list[10], channels_list[11], 2, 3)
+        self.concat4 = Concatenate(in_c=[channels_list[11], channels_list[4]], dimension=1)
+        self.vajra_neck4 = VajraMerudandaBhag3(in_c=channels_list[4] + channels_list[11], out_c=channels_list[12], num_blocks=num_repeats[7], kernel_size=1, shortcut=True, inner_block=inner_block_list[7])
+
+    def forward(self, x):
+        # Backbone
+        stem = self.stem(x)
+        vajra1 = self.vajra_block1(stem)
+
+        pool1 = self.pool1(vajra1)
+        vajra2 = self.vajra_block2(pool1)
+
+        pool2 = self.pool2(vajra2)
+        vajra3 = self.vajra_block3(pool2)
+
+        pool3 = self.pool3(vajra3)
+        vajra4 = self.vajra_block4(pool3)
+        pyramid_pool_backbone = self.pyramid_pool(vajra4) #self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
+        attn_block = self.attn_block(pyramid_pool_backbone)
+        # Neck
+        #_, _, H3, W3 = vajra3.shape
+        neck_upsample1 = self.upsample1(attn_block) #F.interpolate(attn_block, size=(H3, W3), mode="nearest")
+        concat_neck1 = self.concat1([vajra3, neck_upsample1])
+        vajra_neck1 = self.vajra_neck1(concat_neck1)
+
+        #_, _, H2, W2 = vajra2.shape
+        neck_upsample2 = self.upsample2(vajra_neck1) #F.interpolate(vajra_neck1, size=(H2, W2), mode="nearest")
+        concat_neck2 = self.concat2([vajra2, neck_upsample2])
+        vajra_neck2 = self.vajra_neck2(concat_neck2)
+
+        neck_conv1 = self.neck_conv1(vajra_neck2)
+        concat_neck3 = self.concat3([vajra_neck1, neck_conv1])
+        vajra_neck3 = self.vajra_neck3(concat_neck3)
+
+        neck_conv2 = self.neck_conv2(vajra_neck3)
+        concat_neck4 = self.concat4([attn_block, neck_conv2])
+        vajra_neck4 = self.vajra_neck4(concat_neck4)
+
+        outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
+        return outputs
+
 class VajraV1WorldModel(nn.Module):
     def __init__(self,
                  in_channels = 3,
@@ -242,6 +316,8 @@ def build_vajra(in_channels,
         num_repeats = [2, 2, 2, 2, 2, 2, 2, 2] if task != "classify" else [2, 2, 2, 2]
         channels_list = [64, 128, 256, 512, 1024, 256, 512, 256, 256, 256, 512, 512, 1024] if task != "classify" else [64, 128, 256, 512, 1024]
 
+    vajra_deyo_channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256]
+
     inner_blocks_config = {
         "nano": [False, False, True, True, False, False, False, True],
         "small": [False, False, True, True, False, False, False, True],
@@ -258,6 +334,7 @@ def build_vajra(in_channels,
     inner_blocks_list = inner_blocks_config[size]
 
     channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in channels_list]
+    vajra_deyo_channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in vajra_deyo_channels_list]
     num_repeats = [(max(round(n * backbone_depth_mul), 1) if n > 1 else n) for n in num_repeats[:4]] + [(max(round(n * neck_depth_mul), 1) if n > 1 else n) for n in num_repeats[4:]]
 
     embed_channels = [256, 128, 256, 512]
@@ -268,13 +345,13 @@ def build_vajra(in_channels,
     if task != "classify":
         if task != "world":
             if version == "v1":
-                model = VajraV1Model(in_channels, channels_list, num_repeats, inner_blocks_list)
+                model = VajraV1Model(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
             elif version == "v2": 
-                model = VajraV2Model(in_channels, channels_list, num_repeats)
+                model = VajraV2Model(in_channels, channels_list, num_repeats) if model_name.split("-")[1] != "deyo" else VajraV2Model(in_channels, vajra_deyo_channels_list, num_repeats)
             elif version == "v3":
-                model = VajraV3Model(in_channels, channels_list, num_repeats, inner_blocks_list)
+                model = VajraV3Model(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV3Model(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
 
-            head_channels = [channels_list[8], channels_list[10], channels_list[12]] #if version != "v2" else [channels_list[8], channels_list[8], channels_list[10], channels_list[12]]
+            head_channels = [channels_list[8], channels_list[10], channels_list[12]] if model_name.split("-")[1] != "deyo" else [vajra_deyo_channels_list[8], vajra_deyo_channels_list[10], vajra_deyo_channels_list[12]]
 
             if task == "detect":
                 if model_name.split("-")[1] == "deyo":
