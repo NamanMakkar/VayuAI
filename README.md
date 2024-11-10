@@ -10,8 +10,8 @@ tasks like object detection and tracking, instance segmentation, oriented object
 To request for an Enterprise License please get in touch via [Email](mailto:namansingh2803@gmail.com)
 
 <p align="center">
-<img width="50%" src="./vajra/assets/visdrone_testdev_performance_plot.png" alt="VajraV1 performance plot test dev">
-<img width="50%" src="./vajra/assets/visdrone_val_performance_plot.png" alt="VajraV1 performance plot val">
+<img width="90%" src="./vajra/assets/visdrone_testdev_performance_plot.png" alt="VajraV1 performance plot test dev">
+<img width="90%" src="./vajra/assets/visdrone_val_performance_plot.png" alt="VajraV1 performance plot val">
 </p>
 
 ## <div align="center">Performance on VisDrone Dataset</div>
