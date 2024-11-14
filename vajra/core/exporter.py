@@ -18,7 +18,7 @@ from vajra.configs import get_config
 from vajra.dataset.dataset import VajraDetDataset
 from vajra.dataset.build import build_dataloader
 from vajra.dataset.utils import check_det_dataset, check_cls_dataset, check_class_names, default_class_names
-from vajra.nn.modules import VajraMerudandaBhag1, VajraMerudandaBhag4, AttentionBottleneckV2
+from vajra.nn.modules import VajraMerudandaBhag1, VajraMerudandaBhag4, VajraMerudandaBhag7, AttentionBottleneckV2
 from vajra.nn.head import Detection
 from vajra.nn.vajra import DetectionModel, SegmentationModel, VajraWorld
 from vajra.utils import (
@@ -168,7 +168,7 @@ class Exporter:
                 module.dynamic = self.args.dynamic
                 module.export = True
                 module.format = self.args.format
-            elif isinstance(module, (VajraMerudandaBhag4, AttentionBottleneckV2)) and not is_tf_format:
+            elif isinstance(module, (VajraMerudandaBhag4, AttentionBottleneckV2, VajraMerudandaBhag7)) and not is_tf_format:
                 module.forward = module.forward_split
 
         y = None

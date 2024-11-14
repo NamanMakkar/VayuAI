@@ -116,11 +116,11 @@ class VajraV1DEYOModel(nn.Module):
         # Backbone
         self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
         self.vajra_block1 = VajraMerudandaBhag3(channels_list[1], channels_list[2], num_repeats[0], 1, True, 0.25, False, inner_block_list[0]) # stride 4
-        self.pool1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
+        self.conv1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
         self.vajra_block2 = VajraMerudandaBhag3(channels_list[2], channels_list[3], num_repeats[1], 1, True, 0.25, False, inner_block_list[1]) # stride 8
-        self.pool2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
+        self.conv2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
         self.vajra_block3 = VajraMerudandaBhag3(channels_list[3], channels_list[4], num_repeats[2], 1, True, inner_block=inner_block_list[2]) # stride 16
-        self.pool3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
+        self.conv3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
         self.vajra_block4 = VajraMerudandaBhag3(channels_list[4], channels_list[4], num_repeats[3], 1, True, inner_block=inner_block_list[3]) # stride 32
         self.pyramid_pool = SPPF(channels_list[4], channels_list[4])
         self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2)
@@ -146,14 +146,14 @@ class VajraV1DEYOModel(nn.Module):
         stem = self.stem(x)
         vajra1 = self.vajra_block1(stem)
 
-        pool1 = self.pool1(vajra1)
-        vajra2 = self.vajra_block2(pool1)
+        conv1 = self.conv1(vajra1)
+        vajra2 = self.vajra_block2(conv1)
 
-        pool2 = self.pool2(vajra2)
-        vajra3 = self.vajra_block3(pool2)
+        conv2 = self.conv2(vajra2)
+        vajra3 = self.vajra_block3(conv2)
 
-        pool3 = self.pool3(vajra3)
-        vajra4 = self.vajra_block4(pool3)
+        conv3 = self.conv3(vajra3)
+        vajra4 = self.vajra_block4(conv3)
         pyramid_pool_backbone = self.pyramid_pool(vajra4) #self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
         attn_block = self.attn_block(pyramid_pool_backbone)
         # Neck
@@ -184,59 +184,71 @@ class VajraV1WorldModel(nn.Module):
                  channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256],
                  embed_channels=[256, 128, 256, 512],
                  num_heads = [8, 4, 8, 16],
-                 num_repeats=[3, 6, 6, 3, 3, 3, 3, 3]) -> None:
+                 num_repeats=[2, 2, 2, 2, 2, 2, 2, 2], 
+                 inner_block_list = [False, False, True, True, False, False, False, True]) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], [1, 3, 5, -1], -1, [1, 5, 3, -1], -1, [8, 10, -1], -1, [10, 12, -1], -1, [12, 14, 16]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, [5, -1], -1, -1, [3, -1], -1, -1, [11, -1], -1, -1, [9, -1], -1, [13, 16, 19]]
         # Backbone
         self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
-        self.vajra_block1 = VajraMerudandaBhag1(channels_list[1], channels_list[1], num_repeats[0], True, 3, False, 0.25) # stride 4
-        self.pool1 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block2 = VajraMerudandaBhag1(channels_list[1], channels_list[2], num_repeats[1], True, 3, False, 0.25) # stride 8
-        self.pool2 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block3 = VajraMerudandaBhag1(channels_list[2], channels_list[3], num_repeats[2], True, 3) # stride 16
-        self.pool3 = MaxPool(kernel_size=2, stride=2)
-        self.vajra_block4 = VajraMerudandaBhag1(channels_list[3], channels_list[4], num_repeats[3], True, 3) # stride 32
-        self.pyramid_pool = Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, expansion_ratio=1.0)
+        self.vajra_block1 = VajraMerudandaBhag3(channels_list[1], channels_list[2], num_repeats[0], 1, True, 0.25, False, inner_block_list[0]) # stride 4
+        self.conv1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
+        self.vajra_block2 = VajraMerudandaBhag3(channels_list[2], channels_list[3], num_repeats[1], 1, True, 0.25, False, inner_block_list[1]) # stride 8
+        self.conv2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
+        self.vajra_block3 = VajraMerudandaBhag3(channels_list[3], channels_list[4], num_repeats[2], 1, True, inner_block=inner_block_list[2]) # stride 16
+        self.conv3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
+        self.vajra_block4 = VajraMerudandaBhag3(channels_list[4], channels_list[4], num_repeats[3], 1, True, inner_block=inner_block_list[3]) # stride 32
+        self.pyramid_pool = SPPF(channels_list[4], channels_list[4])
+        self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2)
         # Neck
-        self.fusion4cbam = ChatushtayaSanlayan(in_c=channels_list[1:5], out_c=channels_list[6], expansion_ratio=1.0)
-        self.vajra_neck1 = VajraAttentionBlock(channels_list[5], channels_list[6], num_repeats[4], False, 1, embed_channels=embed_channels[0], num_heads=num_heads[0])
+        self.upsample1 = Upsample(2, "nearest")
+        self.concat1 = Concatenate(in_c=[channels_list[4], channels_list[4]], dimension=1)
+        self.vajra_neck1 = VajraAttentionBlock(channels_list[5], channels_list[6], num_repeats[4], False, 1, embed_channels=embed_channels[0], num_heads=num_heads[0], inner_block=inner_block_list[4])
 
-        self.fusion4cbam2 = ChatushtayaSanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[6]], out_c=channels_list[8])
-        self.vajra_neck2 = VajraAttentionBlock(channels_list[7], channels_list[8], num_repeats[5], False, 1, embed_channels=embed_channels[1], num_heads=num_heads[1])
+        self.upsample2 = Upsample(2, "nearest")
+        self.concat2 = Concatenate(in_c=[channels_list[6], channels_list[3]], dimension=1)
+        self.vajra_neck2 = VajraAttentionBlock(channels_list[7], channels_list[8], num_repeats[5], False, 1, embed_channels=embed_channels[1], num_heads=num_heads[1], inner_block=inner_block_list[5])
 
-        self.pyramid_pool_neck1 = Sanlayan(in_c=[channels_list[4], channels_list[6], channels_list[8]], out_c=channels_list[9], stride=2, use_cbam=False)
-        self.vajra_neck3 = VajraAttentionBlock(channels_list[9], channels_list[10], num_repeats[6], False, 1, embed_channels=embed_channels[2], num_heads=num_heads[2])
+        self.neck_conv1 = ConvBNAct(channels_list[8], channels_list[9], 2, 3)
+        self.concat3 = Concatenate(in_c=[channels_list[6], channels_list[9]], dimension=1)
+        self.vajra_neck3 = VajraAttentionBlock(channels_list[9], channels_list[10], num_repeats[6], False, 1, embed_channels=embed_channels[2], num_heads=num_heads[2], inner_block=inner_block_list[6])
 
-        self.pyramid_pool_neck2 = Sanlayan(in_c=[channels_list[6], channels_list[8], channels_list[10]], out_c=channels_list[11], stride=2, use_cbam=False)
-        self.vajra_neck4 = VajraAttentionBlock(channels_list[11], channels_list[12], num_repeats[7], False, 1, embed_channels=embed_channels[3], num_heads=num_heads[3])
+        self.neck_conv2 = ConvBNAct(channels_list[10], channels_list[11], 2, 3)
+        self.concat4 = Concatenate(in_c=[channels_list[11], channels_list[4]], dimension=1)
+        self.vajra_neck4 = VajraAttentionBlock(channels_list[11], channels_list[12], num_repeats[7], False, 1, embed_channels=embed_channels[3], num_heads=num_heads[3], inner_block=inner_block_list[7])
 
     def forward(self, x):
         # Backbone
         stem = self.stem(x)
         vajra1 = self.vajra_block1(stem)
 
-        pool1 = self.pool1(vajra1)
-        vajra2 = self.vajra_block2(pool1)
+        conv1 = self.conv1(vajra1)
+        vajra2 = self.vajra_block2(conv1)
 
-        pool2 = self.pool2(vajra2)
-        vajra3 = self.vajra_block3(pool2)
+        conv2 = self.conv2(vajra2)
+        vajra3 = self.vajra_block3(conv2)
 
-        pool3 = self.pool3(vajra3)
-        vajra4 = self.vajra_block4(pool3)
-        pyramid_pool_backbone = self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
-
+        conv3 = self.conv3(vajra3)
+        vajra4 = self.vajra_block4(conv3)
+        pyramid_pool_backbone = self.pyramid_pool(vajra4) #self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
+        attn_block = self.attn_block(pyramid_pool_backbone)
         # Neck
-        fusion4 = self.fusion4cbam([vajra1, vajra2, vajra3, pyramid_pool_backbone])
-        vajra_neck1 = self.vajra_neck1(fusion4)
+        #_, _, H3, W3 = vajra3.shape
+        neck_upsample1 = self.upsample1(attn_block) #F.interpolate(attn_block, size=(H3, W3), mode="nearest")
+        concat_neck1 = self.concat1([vajra3, neck_upsample1])
+        vajra_neck1 = self.vajra_neck1(concat_neck1)
 
-        fusion4_2 = self.fusion4cbam2([vajra1, vajra3, vajra2, vajra_neck1])
-        vajra_neck2 = self.vajra_neck2(fusion4_2)
+        #_, _, H2, W2 = vajra2.shape
+        neck_upsample2 = self.upsample2(vajra_neck1) #F.interpolate(vajra_neck1, size=(H2, W2), mode="nearest")
+        concat_neck2 = self.concat2([vajra2, neck_upsample2])
+        vajra_neck2 = self.vajra_neck2(concat_neck2)
 
-        pyramid_pool_neck1 = self.pyramid_pool_neck1([pyramid_pool_backbone, vajra_neck1, vajra_neck2])
-        vajra_neck3 = self.vajra_neck3(pyramid_pool_neck1)
+        neck_conv1 = self.neck_conv1(vajra_neck2)
+        concat_neck3 = self.concat3([vajra_neck1, neck_conv1])
+        vajra_neck3 = self.vajra_neck3(concat_neck3)
 
-        pyramid_pool_neck2 = self.pyramid_pool_neck2([vajra_neck1, vajra_neck2, vajra_neck3])
-        vajra_neck4 = self.vajra_neck4(pyramid_pool_neck2)
+        neck_conv2 = self.neck_conv2(vajra_neck3)
+        concat_neck4 = self.concat4([attn_block, neck_conv2])
+        vajra_neck4 = self.vajra_neck4(concat_neck4)
 
         outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
         return outputs
@@ -245,33 +257,34 @@ class VajraV1CLSModel(nn.Module):
     def __init__(self,
                  in_channels=3,
                  channels_list=[64, 128, 256, 512, 1024],
-                 num_repeats=[2, 2, 2, 2]) -> None:
+                 num_repeats=[2, 2, 2, 2],
+                 inner_block_list = [False, False, True, True]) -> None:
         super().__init__()
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
         self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
-        self.vajra_block1 = VajraMerudandaBhag4(channels_list[1], channels_list[2], num_repeats[0], True, 1, 0.25, True) # stride 4
-        self.pool1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
-        self.vajra_block2 = VajraMerudandaBhag4(channels_list[2], channels_list[3], num_repeats[1], True, 1, 0.25, True) # stride 8
-        self.pool2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
-        self.vajra_block3 = VajraMerudandaBhag4(channels_list[3], channels_list[4], num_repeats[2], True, 1, bhag1=True) # stride 16
-        self.pool3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
-        self.vajra_block4 = VajraMerudandaBhag4(channels_list[4], channels_list[4], num_repeats[3], True, 1, bhag1=True) # stride 32
-        self.pyramid_pool = SPPF(channels_list[4], channels_list[4]) #Sanlayan(in_c=[channels_list[1], channels_list[2], channels_list[3], channels_list[4]], out_c=channels_list[4], stride=2, use_cbam=False, expansion_ratio=1.0)
+        self.vajra_block1 = VajraMerudandaBhag3(channels_list[1], channels_list[2], num_repeats[0], 1, True, 0.25, False, inner_block_list[0]) # stride 4
+        self.conv1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
+        self.vajra_block2 = VajraMerudandaBhag3(channels_list[2], channels_list[3], num_repeats[1], 1, True, 0.25, False, inner_block_list[1]) # stride 8
+        self.conv2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
+        self.vajra_block3 = VajraMerudandaBhag3(channels_list[3], channels_list[4], num_repeats[2], 1, True, inner_block=inner_block_list[2]) # stride 16
+        self.conv3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
+        self.vajra_block4 = VajraMerudandaBhag3(channels_list[4], channels_list[4], num_repeats[3], 1, True, inner_block=inner_block_list[3]) # stride 32
+        self.pyramid_pool = SPPF(channels_list[4], channels_list[4])
         self.attn_block = AttentionBottleneck(channels_list[4], channels_list[4], 2)
 
     def forward(self, x):
         stem = self.stem(x)
         vajra1 = self.vajra_block1(stem)
 
-        pool1 = self.pool1(vajra1)
-        vajra2 = self.vajra_block2(pool1)
+        conv1 = self.conv1(vajra1)
+        vajra2 = self.vajra_block2(conv1)
 
-        pool2 = self.pool2(vajra2)
-        vajra3 = self.vajra_block3(pool2)
+        conv2 = self.conv2(vajra2)
+        vajra3 = self.vajra_block3(conv2)
 
-        pool3 = self.pool3(vajra3)
-        vajra4 = self.vajra_block4(pool3)
-        pyramid_pool_backbone = self.pyramid_pool(vajra4) #self.pyramid_pool([vajra1, vajra2, vajra3, vajra4])
+        conv3 = self.conv3(vajra3)
+        vajra4 = self.vajra_block4(conv3)
+        pyramid_pool_backbone = self.pyramid_pool(vajra4)
         attn_block = self.attn_block(pyramid_pool_backbone)
 
         return attn_block
@@ -297,7 +310,7 @@ def build_vajra(in_channels,
     if version != "v1" and version != "v3":
         config_dict = {"nano": [0.5, 0.5, 0.25, 1024], 
                        "small": [0.5, 0.5, 0.5, 1024],
-                       "medium": [0.5, 0.50, 1.0, 512],
+                       "medium": [0.5, 0.5, 1.0, 512],
                        "large": [1.0, 1.0, 1.0, 512],
                        "xlarge": [1.0, 1.0, 1.5, 512],
                 }
@@ -325,6 +338,14 @@ def build_vajra(in_channels,
         "large": [True, True, True, True, True, True, True, True],
         "xlarge": [True, True, True, True, True, True, True, True]
     }
+    vajra_v2_sanlayan_griva_config = {
+        "nano": False,
+        "small": False,
+        "medium": True,
+        "large": True,
+        "xlarge": True,
+    }
+    vajra_v2_sanlayan_griva = vajra_v2_sanlayan_griva_config[size]
     backbone_depth_mul = config_dict[size][0]
     neck_depth_mul = config_dict[size][1]
     width_mul = config_dict[size][2]
@@ -347,7 +368,7 @@ def build_vajra(in_channels,
             if version == "v1":
                 model = VajraV1Model(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
             elif version == "v2": 
-                model = VajraV2Model(in_channels, channels_list, num_repeats) if model_name.split("-")[1] != "deyo" else VajraV2Model(in_channels, vajra_deyo_channels_list, num_repeats)
+                model = VajraV2Model(in_channels, channels_list, num_repeats, vajra_v2_sanlayan_griva, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV2Model(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
             elif version == "v3":
                 model = VajraV3Model(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV3Model(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
 
@@ -411,7 +432,12 @@ def build_vajra(in_channels,
         return vajra, stride, layers, np_model
 
     else:
-        model = VajraV1CLSModel(in_channels=3, channels_list=channels_list, num_repeats=num_repeats) if version == "v1" else VajraV2CLSModel(in_channels=3, channels_list=channels_list, num_repeats=num_repeats)
+        if version == "v1":
+            model = VajraV1CLSModel(in_channels=3, channels_list=channels_list, num_repeats=num_repeats)
+        elif version == "v2":    
+            model = VajraV2CLSModel(in_channels=3, channels_list=channels_list, num_repeats=num_repeats)
+        elif version == "v3":
+            model = VajraV3CLSModel(in_channels=3, channels_list=channels_list, num_repeats=num_repeats)
         np_model = sum(x.numel() for x in model.parameters())
         head = Classification(in_c=channels_list[-1], out_c=num_classes)
         np_head = sum(x.numel() for x in head.parameters())
