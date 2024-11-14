@@ -15,9 +15,9 @@ from vajra.utils import LOGGER, clean_url, TQDM, is_online, url2file
 from vajra import checks
 import torch
 
-GITHUB_ASSETS_REPO = "vajra/assets"
+REPO = "NamanMakkar/VayuAI"
 GITHUB_ASSETS_NAMES = (
-    [f'vajra-v1-{k}{task}.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge') for task in ('-det', '-cls', '-seg', '-pose', '-obb')]
+    [f'visdrone-best-vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')]
 )
 GITHUB_ASSETS_STEMS = [Path(k).stem for k in GITHUB_ASSETS_NAMES]
 
@@ -344,7 +344,7 @@ def get_github_assets(repo="ultralytics/assets", version="latest", retry=False):
     data = r.json()
     return data["tag_name"], [x["name"] for x in data["assets"]]
 
-def attempt_download_asset(file, repo='vayuvahana/vajra', release='0.0.1', **kwargs):
+def attempt_download_asset(file, repo='NamanMakkar/VayuAI', release='v1.0.0', **kwargs):
     from vajra.utils import SETTINGS
     file = str(file)
     file = Path(file.strip().replace("'", ""))
@@ -364,7 +364,8 @@ def attempt_download_asset(file, repo='vayuvahana/vajra', release='0.0.1', **kwa
                 LOGGER.info(f"Found {clean_url(url)} locally at {file}")
             else:
                 safe_download(url=url, file=file, min_bytes=1e5, **kwargs)
-        elif repo == GITHUB_ASSETS_REPO and name in GITHUB_ASSETS_NAMES:
+
+        elif name in GITHUB_ASSETS_NAMES:
             safe_download(url=f"{download_url}/{release}/{name}", file=file, min_bytes=1e5, **kwargs)
         
         else:

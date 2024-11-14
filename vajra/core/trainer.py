@@ -420,7 +420,7 @@ class Trainer:
         return data["train"], data.get("val") or data.get("test")
 
     def setup_model(self):    
-        if isinstance(self.model, torch.nn.Module):  # if model is loaded beforehand. No setup needed
+        if isinstance(self.model, torch.nn.Module):
             return
 
         model, weights = self.model, None
@@ -428,7 +428,7 @@ class Trainer:
         checkpoint = None
         if str(model).endswith(".pt"):
             weights, checkpoint = load_weight(model)
-        self.model = self.get_model(model_name=self.args.model, weights=weights, verbose=RANK == -1)  # calls Model(cfg, weights)
+        self.model = self.get_model(model_name=self.args.model, weights=weights, verbose=RANK == -1)
         return checkpoint
 
     def optimizer_step(self):
