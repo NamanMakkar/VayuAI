@@ -65,8 +65,8 @@ HELP_MSG = """
                 from PIL import Image
 
                 # Build or Load a model
-                model = Vajra('vajra-v1-nano-det.py') # Build a new model from the config file
-                model = Vajra('vajra-v1-nano-det.pt') # Load a pretrained model
+                model = Vajra('vajra-v1-nano-det') # Build a new model from the config file
+                model = Vajra('visdrone-best-vajra-v1-nano-det.pt') # Load a pretrained model
 
                 # Use the model for training, validation, prediction and exporting
                 results = model.train(data='coco128.yaml', epochs=3)

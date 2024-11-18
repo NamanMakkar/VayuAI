@@ -132,7 +132,7 @@ def unzip_file(file, path=None, exclude=(".DS_Store", "__MACOSX"), exist_ok=Fals
 
     Example:
         ```python
-        from ultralytics.utils.downloads import unzip_file
+        from vajra.utils.downloads import unzip_file
 
         dir = unzip_file('path/to/file.zip')
         ```
@@ -387,7 +387,7 @@ def delete_dsstore(path, files_to_delete=(".DS_Store", "__MACOSX")):
 
     Example:
         ```python
-        from ultralytics.utils.downloads import delete_dsstore
+        from vajra.utils.downloads import delete_dsstore
 
         delete_dsstore('path/to/dir')
         ```
@@ -418,7 +418,7 @@ def zip_directory(directory, compress=True, exclude=(".DS_Store", "__MACOSX"), p
 
     Example:
         ```python
-        from ultralytics.utils.downloads import zip_directory
+        from vajra.utils.downloads import zip_directory
 
         file = zip_directory('path/to/dir')
         ```

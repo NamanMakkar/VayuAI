@@ -50,7 +50,7 @@ def on_pretrain_routine_end(trainer):
     from the trainer.
 
     Args:
-        trainer (ultralytics.engine.trainer.BaseTrainer): The training object with arguments and parameters to log.
+        trainer (vajra.core.trainer.Trainer): The training object with arguments and parameters to log.
 
     Global:
         mlflow: The imported mlflow module to use for logging.
@@ -81,7 +81,7 @@ def on_pretrain_routine_end(trainer):
         LOGGER.info(f"{PREFIX}disable with 'vajra settings mlflow=False'")
         mlflow.log_params(dict(trainer.args))
     except Exception as e:
-        LOGGER.warning(f"{PREFIX}WARNING! Failed to initialize: {e}\n" f"{PREFIX}WARNING ⚠️ Not tracking this run")
+        LOGGER.warning(f"{PREFIX}WARNING! Failed to initialize: {e}\n" f"{PREFIX}WARNING! Not tracking this run")
 
 
 def on_train_epoch_end(trainer):
@@ -105,7 +105,7 @@ def on_fit_epoch_end(trainer):
 def on_train_end(trainer):
     """Log model artifacts at the end of the training."""
     if mlflow:
-        mlflow.log_artifact(str(trainer.best.parent))  # log save_dir/weights directory with best.pt and last.pt
+        mlflow.log_artifact(str(trainer.best.parent))  # log save_dir/weights directory with best-vajra-{version}-{size}-{task}.pt and last-vajra-{version}-{size}-{task}.pt
         for f in trainer.save_dir.glob("*"):  # log all other files in save_dir
             if f.suffix in {".png", ".jpg", ".csv", ".pt", ".yaml"}:
                 mlflow.log_artifact(str(f))

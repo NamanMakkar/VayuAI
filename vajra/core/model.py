@@ -213,8 +213,11 @@ class Model(nn.Module):
         self.is_pytorch_file()
         checks.check_pip_update_available()
         model_configuration = yaml_load(checks.check_yaml(kwargs["cfg"])) if kwargs.get("cfg") else self.model_configuration
-        custom = {"data": HYPERPARAMS_CFG_DICT["data"] or data_for_tasks[self.task]}
-        args = {**self.model_configuration, **custom, **kwargs, "mode": "train"}
+        custom = {"data": model_configuration.get("data") or HYPERPARAMS_CFG_DICT["data"] or data_for_tasks[self.task],
+                  "model": self.model_configuration["model"],
+                  "task": self.task
+        }
+        args = {**model_configuration, **custom, **kwargs, "mode": "train"}
         if args.get("resume"):
             args["resume"] = self.checkpoint_path
 

@@ -276,7 +276,7 @@ def convert_dota_to_yolo_obb(dota_root_path: str):
 
     Example:
         ```python
-        from ultralytics.data.converter import convert_dota_to_yolo_obb
+        from vajra.dataset.converter import convert_dota_to_yolo_obb
 
         convert_dota_to_yolo_obb('path/to/DOTA')
         ```

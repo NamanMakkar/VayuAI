@@ -43,7 +43,7 @@ pip install .
 <summary>Usage</summary>
 
 ### CLI
-Vajra can be used in the Command Line Interface with a `vajra` or `vayuvahan` or `vayuai`
+Vajra can be used in the Command Line Interface with a `vajra` or `vayuvahana` or `vayuai`
 command:
 
 ```bash

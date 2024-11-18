@@ -70,7 +70,7 @@ extra = [
 [project.scripts]
 vajra = "vajra.manager:manage"
 vayuai = "vajra.manager:manage"
-vayuvahan = "vajra.manager:manage"
+vayuvahana = "vajra.manager:manage"
 
 [tool.setuptools]
 packages = { find = { where = ["."], include = ["vajra", "vajra.*"] } }

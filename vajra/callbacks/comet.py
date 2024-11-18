@@ -327,7 +327,7 @@ def on_fit_epoch_end(trainer):
     experiment.log_metrics(trainer.metrics, step=curr_step, epoch=curr_epoch)
     experiment.log_metrics(trainer.lr, step=curr_step, epoch=curr_epoch)
     if curr_epoch == 1:
-        from ultralytics.utils.torch_utils import model_info_for_loggers
+        from vajra.utils.torch_utils import model_info_for_loggers
 
         experiment.log_metrics(model_info_for_loggers(trainer), step=curr_step, epoch=curr_epoch)
 

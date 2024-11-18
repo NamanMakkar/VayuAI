@@ -2,6 +2,7 @@
 
 import sys
 from typing import List
+from pathlib import Path
 from vajra.utils import (
     ASSETS, 
     HYPERPARAMS_CFG_DICT,
@@ -61,7 +62,7 @@ def manage(debug=""):
     full_args_dict = {**HYPERPARAMS_CFG_DICT, **{k: None for k in tasks}, **{k: None for k in modes}, **special}
 
     special.update({k[0]: v for k, v in special.items()})
-    special.update({k[:-1]: v for k, v in special.items()})
+    special.update({k[:-1]: v for k, v in special.items() if len(k) > 1 and k.endswith("s")})
     special = {**special, **{f"-{k}":v for k, v in special.items()}, **{f"--{k}": v for k, v in special.items()}}
 
     model_configuration = {}
@@ -76,9 +77,9 @@ def manage(debug=""):
         if "=" in a:
             try:
                 k, v = parse_key_value_pair(a)
-                if k == "config" and v is not None:
+                if k == "hyp-config" and v is not None:
                     LOGGER.info(f"Overriding {HYPERPARAMS_CFG_PATH} with {v}")
-                    model_configuration = {k: val for k, val in yaml_load(checks.check_yaml(v)).items() if k != "config"}
+                    model_configuration = {k: val for k, val in yaml_load(checks.check_yaml(v)).items() if k != "hyp-config"}
                 else:
                     model_configuration[k] = v
             except (NameError, SyntaxError, ValueError, AssertionError) as e:
@@ -120,10 +121,16 @@ def manage(debug=""):
         model = "vajra-v1-det-nano.pt"
         LOGGER.warning(f"WARNING! 'model' argument is missing. Using default 'model={model}'.")
     model_configuration["model"] = model
-    stem = model.lower()
-
-    from vajra import Vajra
-    model = Vajra(model, task=task)
+    stem = Path(model).stem.lower()
+    if "sam_" in stem or "sam2_" in stem or "sam2.1_" in stem:
+        from vajra import SAM
+        model = SAM(model)
+    elif "vajra" in stem and "deyo" in stem:
+        from vajra import VajraDEYO
+        model = VajraDEYO(model, task="detect")
+    else:
+        from vajra import Vajra
+        model = Vajra(model, task=task)
     if isinstance(model_configuration.get("pretrained"), str):
         model.load(model_configuration["pretrained"])
     
@@ -141,20 +148,15 @@ def manage(debug=""):
     elif mode in ("train", "val"):
         if "data" not in model_configuration and "resume" not in model_configuration:
             model_configuration["data"] = HYPERPARAMS_CFG.data or data_for_tasks.get(task or HYPERPARAMS_CFG.task, HYPERPARAMS_CFG.data)
-            LOGGER.warning(f"WARNING! 'source' argument is missing. Using default 'source={model_configuration['source']}'.")
-        
-        elif mode in ("train", "val"):
-            if "data" not in model_configuration and "resume" not in model_configuration:
-                model_configuration["data"] = HYPERPARAMS_CFG.data or data_for_tasks.get(task or HYPERPARAMS_CFG.task, HYPERPARAMS_CFG.data)
-                LOGGER.warning(f"WARNING! 'data' argument is missing. Using default 'data={model_configuration['data']}'.")
-        elif mode == "export":
-            if "format" not in model_configuration:
-                model_configuration["format"] = HYPERPARAMS_CFG.format or "torchscript"
-                LOGGER.warning(f"WARNING! 'format' argument is missing. Using default 'format={model_configuration['format']}'.")
+            LOGGER.warning(f"WARNING! 'data' argument is missing. Using default 'data={model_configuration['data']}'.")
+    elif mode == "export":
+        if "format" not in model_configuration:
+            model_configuration["format"] = HYPERPARAMS_CFG.format or "torchscript"
+            LOGGER.warning(f"WARNING! 'format' argument is missing. Using default 'format={model_configuration['format']}'.")
 
-        getattr(model, mode)(**model_configuration)
+    getattr(model, mode)(**model_configuration)
 
-        LOGGER.info(f"Learn more at: ")
+    #LOGGER.info(f"Learn more at: ")
 
 if __name__ == "__main__":
     manage(debug="")

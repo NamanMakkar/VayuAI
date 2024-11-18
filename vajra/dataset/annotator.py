@@ -19,9 +19,9 @@ def auto_annotate(data, det_model="vajra-v1-nano-det", sam_model="sam_b.pt", dev
 
     Example:
         ```python
-        from ultralytics.data.annotator import auto_annotate
+        from vajra.dataset.annotator import auto_annotate
 
-        auto_annotate(data='ultralytics/assets', det_model='yolov8n.pt', sam_model='mobile_sam.pt')
+        auto_annotate(data='vajra/assets', det_model='visdrone-best-vajra-v1-nano-det.pt', sam_model='mobile_sam.pt')
         ```
     """
     det_model = Vajra(det_model)

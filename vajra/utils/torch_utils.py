@@ -271,7 +271,7 @@ def strip_optimizer(f: Union[str, Path] = "best.pt", s: str = "") -> None:
     Example:
         ```python
         from pathlib import Path
-        from ultralytics.utils.torch_utils import strip_optimizer
+        from vajra.utils.torch_utils import strip_optimizer
 
         for f in Path('path/to/weights').rglob('*.pt'):
             strip_optimizer(f)
