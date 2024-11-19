@@ -75,51 +75,50 @@ path = model.export(format="onnx")
 
 ## Model Architectures
 
-✅ VajraV1-det
-✅ VajraV1-cls
-✅ VajraV1-pose
-✅ VajraV1-seg
-✅ VajraV1-obb
-✅ VajraV1-world
-✅ VajraV1-DEYO-det
-✅ VajraLiteV1-det
-✅ VajraLiteV1-seg
-✅ VajraLiteV1-obb
-✅ VajraLiteV1-pose
-✅ VajraLiteV1-cls
-✅ VajraLiteV1-world
-❌ VajraV1-DEYO-seg (Coming Soon!)
-❌ VajraV1-DEYO-pose (Coming Soon!)
-✅ SAM
-✅ EfficientNetV1
-✅ EfficientNetV2
-✅ VajraEffNetV1
-✅ VajraEffNetV2
-✅ ConvNeXtV1
-✅ ConvNeXtV2
-✅ ResNet
-✅ ResNeSt
-❌ ResNeXt (Coming Soon!)
-❌ ResNetV2 (Coming Soon!)
-✅ EdgeNeXt
-✅ ME-NeSt
-✅ VajraME-NeSt
-✅ MixConvNeXt
-❌ ViT (Coming Soon!)
-❌ Swin (Coming Soon!)
-❌ SwinV2 (Coming Soon!)
+✅ VajraV1-det  
+✅ VajraV1-cls  
+✅ VajraV1-pose  
+✅ VajraV1-seg  
+✅ VajraV1-obb  
+✅ VajraV1-world  
+✅ VajraV1-DEYO-det  
+✅ VajraLiteV1-det  
+✅ VajraLiteV1-seg  
+✅ VajraLiteV1-obb  
+✅ VajraLiteV1-pose  
+✅ VajraLiteV1-cls  
+✅ VajraLiteV1-world  
+❌ VajraV1-DEYO-seg (Coming Soon!)  
+❌ VajraV1-DEYO-pose (Coming Soon!)  
+✅ SAM  
+✅ EfficientNetV1  
+✅ EfficientNetV2  
+✅ VajraEffNetV1  
+✅ VajraEffNetV2  
+✅ ConvNeXtV1  
+✅ ConvNeXtV2  
+✅ ResNet  
+✅ ResNeSt  
+❌ ResNeXt (Coming Soon!)  
+❌ ResNetV2 (Coming Soon!)  
+✅ EdgeNeXt  
+✅ ME-NeSt  
+✅ VajraME-NeSt  
+✅ MixConvNeXt  
+❌ ViT (Coming Soon!)  
+❌ Swin (Coming Soon!)  
+❌ SwinV2 (Coming Soon!)  
 
 ## Tasks Supported
 
-✅ detect
-✅ small_obj_detect
-✅ classify
-✅ multilabel_classify
-✅ pose
-✅ obb
-✅ segment
-✅ world
-✅ panoptic (Coming Soon!)
+✅ detect  
+✅ small_obj_detect  
+✅ classify  
+✅ multilabel_classify  
+✅ pose  
+✅ obb  
+✅ segment  
+✅ world  
 
 ## Model Architecture Details
 
