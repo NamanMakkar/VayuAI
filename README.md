@@ -17,11 +17,11 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 ## <div align="center">Performance on VisDrone Dataset</div>
 | Model                                                                                | size<br><sup>(pixels) | mAP<sup>test-dev<br>50-95 | mAP<sup>val<br>50-95 | Speed<br><sup>RTX 4090 TensorRT10 Latency<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
 | ------------------------------------------------------------------------------------ | --------------------- | -------------------- | ------------------------------ | ----------------------------------- | ------------------ | ----------------- |
-| VajraV1-nano-det | 640                   | 25.5                | 20.8                        | 1.4                              | 3.32                | 8.0               |
-| VajraV1-small-det | 640                   | 27.3               | 24.3                      | 1.4                               | 12.36               | 27.7              |
-| VajraV1-medium-det | 640                   | 29.7                | 27.7                        | 1.8                               | 21.09               | 74.8              |
-| VajraV1-large-det | 640                   | 30.0                 | 28.0                        | 2.4                               | 25.70               | 92.8             |
-| VajraV1-xlarge-det | 640                   | 30.4                | 29.7                       | 2.9                               | 57.75              | 207.8             |
+| [VajraV1-nano-det](https://github.com/VayuAI/releases/download/v1.0.0/visdrone-best-vajra-v1-nano-det.pt) | 640                   | 25.5                | 20.8                        | 1.4                              | 3.32                | 8.0               |
+| [VajraV1-small-det](https://github.com/VayuAI/releases/download/v1.0.0/visdrone-best-vajra-v1-small-det.pt) | 640                   | 27.3               | 24.3                      | 1.4                               | 12.36               | 27.7              |
+| [VajraV1-medium-det](https://github.com/VayuAI/releases/download/v1.0.0/visdrone-best-vajra-v1-medium-det.pt) | 640                   | 29.7                | 27.7                        | 1.8                               | 21.09               | 74.8              |
+| [VajraV1-large-det](https://github.com/VayuAI/releases/download/v1.0.0/visdrone-best-vajra-v1-large-det.pt) | 640                   | 30.0                 | 28.0                        | 2.4                               | 25.70               | 92.8             |
+| [VajraV1-xlarge-det](https://github.com/VayuAI/releases/download/v1.0.0/visdrone-best-vajra-v1-xlarge-det.pt) | 640                   | 30.4                | 29.7                       | 2.9                               | 57.75              | 207.8             |
 
 Results on COCO dataset to be published soon!
 
@@ -75,45 +75,51 @@ path = model.export(format="onnx")
 
 ## Model Architectures
 
-- VajraV1-det
-- VajraV1-cls
-- VajraV1-pose
-- VajraV1-seg
-- VajraV1-obb
-- VajraV1-world
-- VajraV1-DEYO-det
-- VajraV1-DEYO-seg (Coming Soon!)
-- VajraV1-DEYO-pose (Coming Soon!)
-- SAM
-- EfficientNetV1
-- EfficientNetV2
-- VajraEffNetV1
-- VajraEffNetV2
-- ConvNeXtV1
-- ConvNeXtV2
-- ResNet
-- ResNeSt
-- ResNeXt (Coming Soon!)
-- ResNetV2 (Coming Soon!)
-- EdgeNeXt
-- ME-NeSt
-- VajraME-NeSt
-- MixConvNeXt
-- ViT (Coming Soon!)
-- Swin (Coming Soon!)
-- SwinV2 (Coming Soon!)
+✅ VajraV1-det
+✅ VajraV1-cls
+✅ VajraV1-pose
+✅ VajraV1-seg
+✅ VajraV1-obb
+✅ VajraV1-world
+✅ VajraV1-DEYO-det
+✅ VajraLiteV1-det
+✅ VajraLiteV1-seg
+✅ VajraLiteV1-obb
+✅ VajraLiteV1-pose
+✅ VajraLiteV1-cls
+✅ VajraLiteV1-world
+❌ VajraV1-DEYO-seg (Coming Soon!)
+❌ VajraV1-DEYO-pose (Coming Soon!)
+✅ SAM
+✅ EfficientNetV1
+✅ EfficientNetV2
+✅ VajraEffNetV1
+✅ VajraEffNetV2
+✅ ConvNeXtV1
+✅ ConvNeXtV2
+✅ ResNet
+✅ ResNeSt
+❌ ResNeXt (Coming Soon!)
+❌ ResNetV2 (Coming Soon!)
+✅ EdgeNeXt
+✅ ME-NeSt
+✅ VajraME-NeSt
+✅ MixConvNeXt
+❌ ViT (Coming Soon!)
+❌ Swin (Coming Soon!)
+❌ SwinV2 (Coming Soon!)
 
 ## Tasks Supported
 
-- detect
-- small_obj_detect
-- classify
-- multilabel_classify
-- pose
-- obb
-- segment
-- world
-- panoptic (Coming Soon!)
+✅ detect
+✅ small_obj_detect
+✅ classify
+✅ multilabel_classify
+✅ pose
+✅ obb
+✅ segment
+✅ world
+✅ panoptic (Coming Soon!)
 
 ## Model Architecture Details
 
