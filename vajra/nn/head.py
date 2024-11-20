@@ -316,7 +316,7 @@ class OBBDetection(Detection):
         return torch.cat([x, angle], 1) if self.export else (torch.cat([x[0], angle], 1), (x[1], angle))
 
     def decode_bboxes(self, bboxes, anchors):
-        return dist2rbox(bboxes, self.angle, anchor_points=anchors, xywh=True, dim=1)
+        return dist2rbox(bboxes, self.angle, anchor_points=anchors, dim=1)
 
     def get_module_info(self):
         return f"OBBDetection", f"[{self.num_classes}, {self.num_extra}, {self.in_channels}]"
