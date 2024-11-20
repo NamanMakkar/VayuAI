@@ -309,7 +309,7 @@ class OBBDetection(Detection):
 
         if not self.training:
             self.angle = angle
-            x = Detection.forward(self, x)
+        x = Detection.forward(self, x)
         if self.training:
             return x, angle
         

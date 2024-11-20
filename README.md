@@ -71,6 +71,17 @@ results[0].show()
 
 path = model.export(format="onnx")
 ```
+
+Pretrained Visdrone weights can also be used for model inference 
+
+```python
+from vajra import Vajra
+model = Vajra("visdrone-best-vajra-v1-xlarge-det.pt")
+results = model("path/to/img.jpg")
+results[0].show()
+
+path = model.export(format="engine", device=0, half=True)
+```
 </details>
 
 ## Model Architectures

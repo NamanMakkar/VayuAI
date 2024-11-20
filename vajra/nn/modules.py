@@ -15,10 +15,40 @@ act_table = {'silu' : nn.SiLU(),
              'hardswish': nn.Hardswish(),
              'mish': nn.Mish()}
 
+def autopad(k, p=None, d=1):  # kernel, padding, dilation
+    """Pad to 'same' shape outputs."""
+    if d > 1:
+        k = d * (k - 1) + 1 if isinstance(k, int) else [d * (x - 1) + 1 for x in k]  # actual kernel-size
+    if p is None:
+        p = k // 2 if isinstance(k, int) else [x // 2 for x in k]  # auto-pad
+    return p
+
 def make_divisible(x, divisor):
     if isinstance(divisor, torch.Tensor):
         divisor = int(divisor.max())
     return math.ceil(x / divisor) * divisor
+
+class mn_conv(nn.Module):
+    def __init__(self, c1, c2, k=1, s=1, act="relu6", p=None, g=1, d=1):
+        super().__init__()
+        self.c1 = c1
+        self.c2 = c2
+        self.k = k
+        self.s = s
+        self.act = act
+        self.p = p
+        self.g = g
+        self.d = d
+        padding = 0 if k==s else autopad(k,p,d)
+        self.c = nn.Conv2d(c1, c2, k, s, padding, groups=g)
+        self.bn = nn.BatchNorm2d(c2)
+        self.act = act_table.get(act)
+    
+    def forward(self, x):
+        return self.act(self.bn(self.c(x)))
+    
+    def get_module_info(self):
+        return "LeYOLO_mn_conv", f"[{self.c1}, {self.c2}, {self.k}, {self.act}, {self.p}, {self.g}, {self.d}]"
 
 class Conv(nn.Module):
     def __init__(self, in_c, out_c, stride=1, kernel_size=1, padding=None, groups=1, dilation=1, bias=False) -> None:
@@ -3340,6 +3370,39 @@ class MobileNetV3InvertedResidual(nn.Module):
 
     def get_module_info(self):
         return "MobileNetV3InvertedResidual", f"[{self.in_c}, {self.out_c}, {self.stride}, {self.kernel_size}, {self.dilation}, {self.expand_ratio}, {self.use_se}, {self.use_hs}]"    
+
+class MobileNetV3_BLOCK(nn.Module):
+    def __init__(self, c1, c2, k=3, e=None, sa="None", act="silu", stride=1, pw=True):
+        #input_channels, output_channels, repetition, stride, expension ratio
+        super().__init__()
+        c_mid = e if e != None else c1
+        self.c1 = c1
+        self.c2 = c2
+        self.k = k
+        self.e = e
+        self.sa = sa
+        self.act = act
+        self.stride=stride
+        self.pw = pw
+        self.residual = c1 == c2 and stride == 1
+
+        features = [mn_conv(c1, c_mid, act=act)] if pw else [] #if c_mid != c1 else []
+        features.extend([mn_conv(c_mid, c_mid, k, stride, g=c_mid, act=act),
+                         #attn,
+                         nn.Conv2d(c_mid, c2, 1),
+                         nn.BatchNorm2d(c2),
+                         #nn.SiLU(),
+                         ])
+        self.layers = nn.Sequential(*features)
+    def forward(self, x):
+        #print(x.shape)
+        if self.residual:
+            return x + self.layers(x)
+        else:
+            return self.layers(x)
+        
+    def get_module_info(self):
+        return "LeYOLO_MobileNetV3_BLOCK", f"[{self.c1}, {self.c2}, {self.e}, {self.sa}, {self.act}, {self.stride}, {self.pw}]" 
 
 class MobileNetV4InvertedResidual(nn.Module):
     def __init__(self, 
