@@ -468,7 +468,7 @@ class OBBLoss(DetectionLoss):
         loss = torch.zeros(3, device=self.device)
         feats, pred_angle = preds if isinstance(preds[0], list) else preds[1]
         batch_size = pred_angle.shape[0]
-        pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape, self.num_outputs, -1) for xi in feats], 2).split(
+        pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.num_outputs, -1) for xi in feats], 2).split(
             (self.reg_max * 4, self.num_classes), 1
         )
 
@@ -487,12 +487,12 @@ class OBBLoss(DetectionLoss):
             targets = targets[(rw >= 2) & (rh >= 2)]
             targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=img_size[[1, 0, 1, 0]])
             gt_labels, gt_bboxes = targets.split((1, 5), 2)
-            mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
+            mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0.0)
         except RuntimeError as e:
             raise TypeError(
                 "ERROR! OBB dataset incorrectly formatted or not an OBB dataset.\n"
                 "This error can occur when incorrectly training an 'OBB' model on a 'detect' dataset, "
-                "i.e 'vajra train model=vajra-v1-nano-obb.pt data=dota8.yaml'.\nVerify your dataset is a "
+                "i.e 'vajra train model='vajra-v1-nano-obb' data=dota8.yaml'.\nVerify your dataset is a "
                 "correctly formatted 'OBB' dataset using 'data=dota8.yaml'"
             ) from e
 

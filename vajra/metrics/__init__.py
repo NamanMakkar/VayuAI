@@ -934,7 +934,7 @@ class OrientedBboxMetrics(StringOps):
         return self.bbox.fitness()
 
     @property
-    def ap_class_idx(self):
+    def ap_class_index(self):
         return self.bbox.ap_class_idx
 
     @property

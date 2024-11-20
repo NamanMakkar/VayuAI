@@ -44,7 +44,7 @@ class OBBValidator(DetectionValidator):
         img_size = batch["img"].shape[2:]
         ratio_pad = batch["ratio_pad"][si]
         if len(cls):
-            bbox[..., :4].mul_(torch.tensor(img_size, device=self.device)[1, 0, 1, 0])
+            bbox[..., :4].mul_(torch.tensor(img_size, device=self.device)[[1, 0, 1, 0]])
             ops.scale_boxes(img_size, bbox, ori_shape, ratio_pad=ratio_pad, xywh=True)
         
         return dict(cls=cls, bbox=bbox, ori_shape=ori_shape, img_size=img_size, ratio_pad=ratio_pad)
