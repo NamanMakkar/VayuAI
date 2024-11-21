@@ -23,6 +23,22 @@ class VarifocalLoss(nn.Module):
             loss = (F.binary_cross_entropy_with_logits(pred_score.float(), gt_score.float(), reduction='none') * weight).mean(1).sum()
         return loss
 
+class DFLoss(nn.Module):
+    def __init__(self, reg_max=16) -> None:
+        super().__init__()
+        self.reg_max = reg_max
+
+    def __call__(self, pred_dist, target):
+        target = target.clamp_(0, self.reg_max - 1 - 0.01)
+        tl = target.long()
+        tr = tl + 1
+        wl = tr - target
+        wr = 1 - wl
+        return (
+            F.cross_entropy(pred_dist, tl.view(-1), reduction="none").view(tl.shape) * wl
+            + F.cross_entropy(pred_dist, tr.view(-1), reduction="none").view(tl.shape) * wr
+        ).mean(-1, keepdim=True)
+
 class FocalLoss(nn.Module):
     def __init__(self) -> None:
         super().__init__()
@@ -46,6 +62,7 @@ class BboxLoss(nn.Module):
         super().__init__()
         self.reg_max = reg_max
         self.use_dfl = use_dfl
+        self.dfl_loss = DFLoss(reg_max) if reg_max > 1 else None
 
     def forward(self, pred_dist, pred_bboxes, anchor_points, target_bboxes, target_scores, target_scores_sum, fg_mask):
         """IoU loss."""
@@ -55,30 +72,13 @@ class BboxLoss(nn.Module):
 
         # DFL loss
         if self.use_dfl:
-            target_ltrb = bbox2dist(anchor_points, target_bboxes, self.reg_max)
-            loss_dfl = self._df_loss(pred_dist[fg_mask].view(-1, self.reg_max + 1), target_ltrb[fg_mask]) * weight
+            target_ltrb = bbox2dist(anchor_points, target_bboxes, self.dfl_loss.reg_max - 1)
+            loss_dfl = self.dfl_loss(pred_dist[fg_mask].view(-1, self.dfl_loss.reg_max), target_ltrb[fg_mask]) * weight
             loss_dfl = loss_dfl.sum() / target_scores_sum
         else:
             loss_dfl = torch.tensor(0.0).to(pred_dist.device)
 
         return loss_iou, loss_dfl
-    
-    @staticmethod
-    def _df_loss(pred_dist, target):
-        """
-        Return sum of left and right DFL losses.
-
-        Distribution Focal Loss (DFL) proposed in Generalized Focal Loss
-        https://ieeexplore.ieee.org/document/9792391
-        """
-        tl = target.long()  # target left
-        tr = tl + 1  # target right
-        wl = tr - target  # weight left
-        wr = 1 - wl  # weight right
-        return (
-            F.cross_entropy(pred_dist, tl.view(-1), reduction="none").view(tl.shape) * wl
-            + F.cross_entropy(pred_dist, tr.view(-1), reduction="none").view(tl.shape) * wr
-        ).mean(-1, keepdim=True)
 
 class DetectionLoss:
     def __init__(self, model, tal_topk=10) -> None:
@@ -93,18 +93,20 @@ class DetectionLoss:
         self.num_outputs = self.num_classes + self.reg_max * 4
         self.device = device
         self.assigner = TaskAlignedAssigner(topk=tal_topk, num_classes=self.num_classes, alpha=0.5, beta=6.0)
-        self.bbox_loss = BboxLoss(self.reg_max - 1, use_dfl=self.use_dfl).to(device)
+        self.bbox_loss = BboxLoss(self.reg_max, use_dfl=self.use_dfl).to(device)
         self.proj = torch.arange(self.reg_max, dtype=torch.float, device=self.device)
 
     def preprocess(self, targets, batch_size, scale_tensor):
         """Preprocesses the target counts and matches with the input batch size to output a tensor."""
-        if targets.shape[0] == 0:
-            out = torch.zeros(batch_size, 0, 5, device=self.device)
+        num_layers, num_extra = targets.shape
+
+        if num_layers == 0:
+            out = torch.zeros(batch_size, 0, num_extra - 1, device=self.device)
         else:
             i = targets[:, 0]  # image index
             _, counts = i.unique(return_counts=True)
             counts = counts.to(dtype=torch.int32)
-            out = torch.zeros(batch_size, counts.max(), 5, device=self.device)
+            out = torch.zeros(batch_size, counts.max(), num_extra - 1, device=self.device)
             for j in range(batch_size):
                 matches = i == j
                 n = matches.sum()
@@ -138,7 +140,7 @@ class DetectionLoss:
         targets = torch.cat((batch["batch_idx"].view(-1, 1), batch["cls"].view(-1, 1), batch["bboxes"]), 1)
         targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
-        mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
+        mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0.0)
         # Pboxes
         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
         _, target_bboxes, target_scores, fg_mask, _ = self.assigner(
@@ -433,8 +435,8 @@ class RotatedBboxLoss(BboxLoss):
         loss_iou = ((1.0 - iou) * weight).sum() / target_scores_sum
 
         if self.use_dfl:
-            target_ltrb = bbox2dist(anchor_points, xywh2xyxy(target_bboxes[..., :4]), self.reg_max)
-            loss_dfl = self._df_loss(pred_dist[fg_mask].view(-1, self.reg_max + 1), target_ltrb[fg_mask]) * weight
+            target_ltrb = bbox2dist(anchor_points, xywh2xyxy(target_bboxes[..., :4]), self.dfl_loss.reg_max - 1)
+            loss_dfl = self.dfl_loss(pred_dist[fg_mask].view(-1, self.dfl_loss.reg_max), target_ltrb[fg_mask]) * weight
             loss_dfl = loss_dfl.sum() / target_scores_sum
         else:
             loss_dfl = torch.tensor(0.0).to(pred_dist.device)
@@ -444,7 +446,7 @@ class OBBLoss(DetectionLoss):
     def __init__(self, model):
         super().__init__(model)
         self.assigner = RotatedTaskAlignedAssigner(topk=10, num_classes=self.num_classes, alpha=0.5, beta=6.0)
-        self.bbox_loss = RotatedBboxLoss(self.reg_max - 1, use_dfl=self.use_dfl).to(self.device)
+        self.bbox_loss = RotatedBboxLoss(self.reg_max, use_dfl=self.use_dfl).to(self.device)
     
     def preprocess(self, targets, batch_size, scale_tensor):
         if targets.shape[0] == 0:

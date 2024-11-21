@@ -219,35 +219,39 @@ def keypoint_iou(kpt1, kpt2, area, sigma, eps=1e-7):
     return ((-e).exp() * kpt_mask[:, None]).sum(-1) / (kpt_mask.sum(-1)[:, None] + eps)
 
 def _get_cov_mat(boxes):
-    gaussian_bboxes = torch.cat(([boxes[:, 2:4].pow(2) / 12, boxes[:, 4:]]), dim=-1)
-    a, b, c = gaussian_bboxes.split(1, dim=-1)
+    gbbs = torch.cat((boxes[:, 2:4].pow(2) / 12, boxes[:, 4:]), dim=-1)
+    a, b, c = gbbs.split(1, dim=-1)
     cos = c.cos()
     sin = c.sin()
     cos2 = cos.pow(2)
     sin2 = sin.pow(2)
-    return a * cos2 + b * sin2, a * sin2 + b * cos2, (a - b) * sin * cos
+    return a * cos2 + b * sin2, a * sin2 + b * cos2, (a - b) * cos * sin
 
 def probabilistic_iou(obb1, obb2, CIoU=False, eps=1e-7):
-    if CIoU:
-        w1, h1 = obb1[..., 2:4].split(1, dim=-1)
-        w2, h2 = obb2[..., 2:4].split(1, dim=-1)
-        v = (4 / math.pi**2) *((w2/h2).atan() - (w1 / h1).atan()).pow(2)
-        with torch.no_grad():
-            alpha = v / (v - iou + (1 + eps))
-        return iou - v * alpha # CIoU
-
     x1, y1 = obb1[..., :2].split(1, dim=-1)
     x2, y2 = obb2[..., :2].split(1, dim=-1)
     a1, b1, c1 = _get_cov_mat(obb1)
     a2, b2, c2 = _get_cov_mat(obb2)
-    abc = (a1 + a2) * (b1 + b2) - (c1 + c2).pow(2)
-
-    t1 = (((a1 + a2) * (y1 - y2).pow(2) + (b1 + b2) * (x1 - x2).pow(2)) / (abc +  eps)) * 0.25
-    t2 = (((c1 + c2) * (x2 - x1) * (y2 - y1)) / (abc + eps)) * 0.5
-    t3 = ((abc) / (4 * ((a1 * b1 - c1.pow(2)).clamp_(0) * (a2 * b2 - c2.pow(2)).clamp_(0)).sqrt() + eps) + eps).log() * 0.5
+    
+    t1 = (
+        ((a1 + a2) * (y1 - y2).pow(2) + (b1 + b2) * (x1 - x2).pow(2)) / ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2) + eps)
+    ) * 0.25
+    t2 = (((c1 + c2) * (x2 - x1) * (y1 - y2)) / ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2) + eps)) * 0.5
+    t3 = (
+        ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2))
+        / (4 * ((a1 * b1 - c1.pow(2)).clamp_(0) * (a2 * b2 - c2.pow(2)).clamp_(0)).sqrt() + eps)
+        + eps
+    ).log() * 0.5
     bd = (t1 + t2 + t3).clamp(eps, 100.0)
     hd = (1.0 - (-bd).exp() + eps).sqrt()
     iou = 1 - hd
+    if CIoU:
+        w1, h1 = obb1[..., 2:4].split(1, dim=-1)
+        w2, h2 = obb2[..., 2:4].split(1, dim=-1)
+        v = (4 / math.pi**2) * ((w2/h2).atan() - (w1 / h1).atan()).pow(2)
+        with torch.no_grad():
+            alpha = v / (v - iou + (1 + eps))
+        return iou - v * alpha # CIoU
     return iou
 
 def batch_probabilistic_iou(obb1, obb2, eps = 1e-7):
@@ -258,15 +262,19 @@ def batch_probabilistic_iou(obb1, obb2, eps = 1e-7):
     x2, y2 = (x.squeeze(-1)[None] for x in obb2[..., :2].split(1, dim=-1))
     a1, b1, c1 = _get_cov_mat(obb1)
     a2, b2, c2 = (x.squeeze(-1)[None] for x in _get_cov_mat(obb2))
-    abc =  (a1 + a2) * (b1 + b2) - (c1 + c2).pow(2)
-
-    t1 = (((a1 + a2) * (y1 - y2).pow(2) + (b1 + b2) * (x1 - x2).pow(2)) / (abc + eps)) * 0.25
-    t2 = (((c1 + c2) * (x2 - x1) * (y1 - y2)) / (abc + eps)) * 0.5
-    t3 = ((abc) / (4 * ((a1 * b1 - c1.pow(2)).clamp_(0) * (a2 * b2 - c2.pow(2)).clamp_(0)).sqrt() + eps) + eps).log() * 0.5
+    
+    t1 = (
+        ((a1 + a2) * (y1 - y2).pow(2) + (b1 + b2) * (x1 - x2).pow(2)) / ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2) + eps)
+    ) * 0.25
+    t2 = (((c1 + c2) * (x2 - x1) * (y1 - y2)) / ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2) + eps)) * 0.5
+    t3 = (
+        ((a1 + a2) * (b1 + b2) - (c1 + c2).pow(2))
+        / (4 * ((a1 * b1 - c1.pow(2)).clamp_(0) * (a2 * b2 - c2.pow(2)).clamp_(0)).sqrt() + eps)
+        + eps
+    ).log() * 0.5
     bd = (t1 + t2 + t3).clamp(eps, 100.0)
     hd = (1.0 - (-bd).exp() + eps).sqrt()
-    iou = 1 - hd
-    return iou
+    return 1 - hd
 
 def smooth_bce(eps=0.1):
     return 1.0 - 0.5*eps, 0.5*eps
