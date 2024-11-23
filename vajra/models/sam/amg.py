@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 def is_box_near_crop_edge(
-    boxes: torch.Tensor, crop_box: List[int], orig_box:List[int],
+    boxes: torch.Tensor, crop_box: List[int], orig_box:List[int], atol: float = 20.0
 ) -> torch.Tensor:
     """Return a boolean tensor indicating if boxes are near the crop edge."""
     crop_box_torch = torch.as_tensor(crop_box, dtype=torch.float, device=boxes.device)
@@ -111,7 +111,7 @@ def uncrop_points(points: torch.Tensor, crop_box: List[int]) -> torch.Tensor:
 
 
 def uncrop_masks(masks: torch.Tensor, crop_box: List[int], orig_h: int, orig_w: int) -> torch.Tensor:
-    """Uncrop masks by padding them to the original image size."""
+    """Uncrop masks by padding them to the original image size, handling coordinate transformations."""
     x0, y0, x1, y1 = crop_box
     if x0 == 0 and y0 == 0 and x1 == orig_w and y1 == orig_h:
         return masks
@@ -125,7 +125,7 @@ def remove_small_regions(mask: np.ndarray, area_thresh: float, mode: str) -> Tup
     """Remove small disconnected regions or holes in a mask, returning the mask and a modification indicator."""
     import cv2  # type: ignore
 
-    assert mode in {"holes", "islands"}
+    assert mode in {"holes", "islands"}, f"Provided mode {mode} is invalid"
     correct_holes = mode == "holes"
     working_mask = (correct_holes ^ mask).astype(np.uint8)
     n_labels, regions, stats, _ = cv2.connectedComponentsWithStats(working_mask, 8)

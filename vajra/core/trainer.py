@@ -18,7 +18,7 @@ import yaml
 from vajra.distributed import ddp_cleanup, generate_ddp_command
 from tqdm import tqdm
 from vajra.nn.vajra import load_weight, load_ensemble_weights
-from vajra.new_optimizers.lion import Lion
+from vajra.new_optimizers import Lion, ADOPT, AdEMAMix, AdEMAMixDistributedShampoo
 from vajra.utils.autobatch import check_train_batch_size
 from vajra.configs import get_config, get_save_dir
 from vajra.utils import (
@@ -600,9 +600,15 @@ class Trainer:
         if name == 'SGD':
             optimizer = torch.optim.SGD(g_b, lr=lr, momentum=momentum, nesterov=True)
         elif name in ('Adam', 'AdamW', 'Adamax', 'NAdam', 'RAdam'):
-            optimizer = getattr(torch.optim, name, torch.optim.AdamW)(g_b, lr=lr, betas=(momentum, 0.999), weight_decay=0.0)
+            optimizer = getattr(torch.optim, name, torch.optim.AdamW)(g_b, lr=lr, betas=(momentum, 0.999), weight_decay=decay)
         elif name == 'LION':
-            optimizer = Lion(g_b, lr=lr, betas=(momentum, 0.99), weight_decay=0.0)
+            optimizer = Lion(g_b, lr=lr, betas=(momentum, 0.99), weight_decay=decay)
+        elif name == "ADOPT":
+            optimizer = ADOPT(g_b, lr=lr, betas=(momentum, 0.99), weight_decay=decay)
+        elif name == "AdEMAMix":
+            optimizer = AdEMAMix(g_b, lr=lr, betas=(momentum, 0.999, 0.9999), weight_decay=decay)
+        elif name == "AdEMAMixShampoo":
+            optimizer = AdEMAMixDistributedShampoo(g_b, lr=lr, betas=(momentum, 0.999, 0.9999), weight_decay=decay)
         elif name == 'RMSProp':
             optimizer = torch.optim.RMSprop(g_b, lr=lr, momentum=momentum)
         else:

@@ -125,12 +125,19 @@ def manage(debug=""):
     if "sam_" in stem or "sam2_" in stem or "sam2.1_" in stem:
         from vajra import SAM
         model = SAM(model)
+
+    elif "fastsam" in stem:
+        from vajra import FastSAM
+        model = FastSAM(model)
+
     elif "vajra" in stem and "deyo" in stem:
         from vajra import VajraDEYO
         model = VajraDEYO(model, task="detect")
+
     else:
         from vajra import Vajra
         model = Vajra(model, task=task)
+
     if isinstance(model_configuration.get("pretrained"), str):
         model.load(model_configuration["pretrained"])
     

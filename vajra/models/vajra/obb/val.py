@@ -108,7 +108,7 @@ class OBBValidator(DetectionValidator):
             pred_txt.mkdir(parents=True, exist_ok=True)
             data = json.load(open(pred_json))
 
-            LOGGER.info(f"Saving predictions with DOTA formate to {pred_txt}...")
+            LOGGER.info(f"Saving predictions with DOTA format to {pred_txt}...")
 
             for d in data:
                 image_id = d["image_id"]
@@ -120,7 +120,7 @@ class OBBValidator(DetectionValidator):
                     f.writelines(f"{image_id} {score} {p[0]} {p[1]} {p[2]} {p[3]} {p[4]} {p[5]} {p[6]} {p[7]}\n")
                 
             pred_merged_txt = self.save_dir / "predictions_merged_txt"
-            pred_merged_txt.mkdir(parents=True, exists_ok=True)
+            pred_merged_txt.mkdir(parents=True, exist_ok=True)
             merged_results = defaultdict(list)
             LOGGER.info(f"Saving merged predictions with DOTA format to {pred_merged_txt}...")
 

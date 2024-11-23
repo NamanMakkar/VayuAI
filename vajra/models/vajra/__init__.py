@@ -2,6 +2,6 @@
 
 from vajra.models.vajra import classify, detect, pose, obb, segment, small_obj_detect
 
-from .model import Vajra
+from .model import Vajra, VajraWorldModel
 
-__all__ = ["classify", "segment", "detect", "pose", "obb", "small_obj_detect", "Vajra"]
+__all__ = ["classify", "segment", "detect", "pose", "obb", "small_obj_detect", "Vajra", "VajraWorldModel"]

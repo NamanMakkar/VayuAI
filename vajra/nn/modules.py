@@ -240,6 +240,19 @@ class DWPyConv2(nn.Module):
     def forward(self, x):
         pyramid = torch.cat((self.conv1_1(x), self.conv1_2(x)), dim=1)
         return x + pyramid if self.add else pyramid
+    
+class RepVGGDWPyConv2(nn.Module):
+    """ Pyramidal Convolutional Block with 2 DW convolutions """
+    def __init__(self, in_c, out_c, shortcut=False):
+        super(RepVGGDWPyConv2, self).__init__()
+        assert in_c == out_c, "In channels and out channels must be equal for DWPyConv2"
+        self.conv1_1 = nn.Sequential(DepthwiseConvBNAct(in_c, in_c, kernel_size=3), ConvBNAct(in_c, out_c // 2, 1, 1))
+        self.conv1_2 = nn.Sequential(RepVGGDW(in_c, kernel_size=7), ConvBNAct(in_c, out_c // 2, 1, 1))
+        self.add = shortcut and in_c == out_c
+
+    def forward(self, x):
+        pyramid = torch.cat((self.conv1_1(x), self.conv1_2(x)), dim=1)
+        return x + pyramid if self.add else pyramid
 
 class DWPyConv3(nn.Module):
     """ Pyramidal Convolutional Block with 3 DW convolutions"""
@@ -1047,6 +1060,35 @@ class VajraLiteMerudandaBhag1(nn.Module):
     def get_module_info(self):
         return f"VajraLiteMerudandaBhag1", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.kernel_size}, {self.shortcut}, {self.expand_channels}, {self.use_cbam}, {self.inner_block}]"
 
+class VajraV2MerudandaBhag2(nn.Module):
+    def __init__(self, in_c, out_c, num_blocks=3, kernel_size=1, shortcut=False, expand_ratio=0.5, use_cbam = False, inner_block=False) -> None:
+        super().__init__()
+        self.in_c = in_c
+        self.out_c = out_c
+        self.num_blocks=num_blocks
+        self.shortcut = shortcut
+        self.use_cbam = use_cbam
+        self.hidden_c = int(out_c * expand_ratio)
+        self.inner_block = inner_block
+        self.kernel_size = kernel_size
+        self.expand_ratio = expand_ratio
+        block = InnerBlockV2 if inner_block else VajraV2Block
+        self.conv1 = ConvBNAct(in_c, self.hidden_c, 1, 1)
+        self.bottleneck_blocks = nn.ModuleList(block(self.hidden_c, self.hidden_c, 2, True, kernel_size, 0.5) for _ in range(num_blocks)) if inner_block else nn.ModuleList(block(self.hidden_c, expansion_ratio=0.5) for _ in range(num_blocks))
+        self.conv2 = ConvBNAct(in_c + (num_blocks + 1) * self.hidden_c, out_c, kernel_size=1, stride=1)
+        self.cbam = CBAM(out_c) if self.use_cbam else nn.Identity()
+        self.add = shortcut and in_c == out_c
+    
+    def forward(self, x):
+        y = [x, self.conv1(x)]
+        y.extend(bottleneck(y[-1]) for bottleneck in self.bottleneck_blocks)
+        y = self.conv2(torch.cat(y, 1))
+        cbam = self.cbam(y)
+        return x + cbam if self.add else y + cbam
+
+    def get_module_info(self):
+        return f"VajraV2MerudandaBhag2", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.kernel_size}, {self.shortcut}, {self.expand_ratio}, {self.use_cbam}, {self.inner_block}]"
+
 class VajraGrivaBhag3(nn.Module):
     def __init__(self, out_c, num_blocks=3, shortcut=False, kernel_size=1, expansion_ratio=0.5, use_cbam=False, inner_block=False) -> None:
         super().__init__()
@@ -1342,23 +1384,19 @@ class VajraV1LiteOuterBlock(nn.Module):
         return "VajraV1LiteOuterBlock", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.shortcut}, {self.kernel_size}, {self.expand_channels}, {self.use_cbam}]"
     
 class InnerBlockV2(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=1) -> None:
+    def __init__(self, in_c, out_c, num_blocks=1, shortcut=False, kernel_size=1, expansion_ratio=0.5) -> None:
         super().__init__()
-        assert in_c == out_c, "For InnerBlockV2 in channels should be equal to out channels"
-        hidden_c = int(out_c * 0.5)
-        self.conv1 = ConvBNAct(in_c, 2 * hidden_c, 1, 1)
-        self.dwconv = nn.Sequential(DepthwiseConvBNAct(hidden_c, hidden_c, 1, 3), ConvBNAct(hidden_c, hidden_c, 1, 1))
+        hidden_c = int(out_c * expansion_ratio)
+        self.conv1 = ConvBNAct(in_c, hidden_c, stride=1, kernel_size=kernel_size)
         self.conv2 = ConvBNAct(2 * hidden_c, out_c, kernel_size=1, stride=1)
-        self.bottleneck_blocks = nn.Sequential(*[BottleneckV2(hidden_c, hidden_c, expansion_ratio=1.0) for _ in range(num_blocks)])
+        self.bottleneck_blocks = nn.Sequential(*[VajraV2Block(hidden_c, expansion_ratio=1.0) for _ in range(num_blocks)])
+        self.add = shortcut and in_c == out_c
     
     def forward(self, x):
-        conv1 = self.conv1(x)
-        fm1, fm2 = conv1.chunk(2, 1)
-        fm1 = self.dwconv(fm1)
-        fm2 = fm2 + fm1
-        fm2 = self.bottleneck_blocks(fm2)
-        out = self.conv2(torch.cat((fm1, fm2), 1))
-        return x + out
+        a = self.conv1(x)
+        b = self.bottleneck_blocks(a)
+        out = self.conv2(torch.cat((a, b), 1))
+        return x + out if self.add else out
     
 class VajraMerudandaBhag2(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=3, shortcut=False, kernel_size=1, expansion_ratio=0.5, bhag1=False, use_cbam=False, bottleneck_dw=False) -> None:
@@ -3064,8 +3102,8 @@ class VajraV2Block(nn.Module):
         super().__init__()
         self.dim = dim
         self.hidden_c = int(expansion_ratio * dim)
-        self.pyconv = DWPyConv2(dim, self.hidden_c, [3, 5], True)
-        self.conv1 = ConvBNAct(self.hidden_c, dim, stride=1, kernel_size=3)
+        self.pyconv = RepVGGDWPyConv2(dim, self.hidden_c, True)
+        self.conv1 = nn.Sequential(ConvBNAct(self.hidden_c, dim, 1, 1), DepthwiseConvBNAct(dim, dim, 1, 3))
         self.conv2 = ConvBNAct(self.hidden_c + dim, dim, 1, 1)
 
     def forward(self, x):

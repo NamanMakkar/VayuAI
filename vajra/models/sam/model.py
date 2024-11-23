@@ -5,12 +5,13 @@ from pathlib import Path
 from vajra.core.model import Model
 from vajra.utils.torch_utils import model_info
 from .build import build_sam
-from .predict import Predictor
+from .predict import SamPredictor, SAM2Predictor
 
 class SAM(Model):
     def __init__(self, model_name="sam_b.pt") -> None:
         if model_name and Path(model_name).suffix not in {".pt", ".pth"}:
             raise NotImplementedError("SAM prediction requires pre-trained *.pt or *.pth model.")
+        self.is_sam2 = "sam2" in Path(model_name).stem
         super().__init__(model_name, task="segment")
 
     def load_model(self, weights: str, task=None) -> None:
@@ -18,7 +19,7 @@ class SAM(Model):
 
     def predict(self, source, stream = False, bboxes=None, points=None, labels=None, **kwargs):
         model_configuration = dict(conf=0.25, task="segment", mode="predict", imgsz=1024)
-        kwargs.update(model_configuration)
+        kwargs = {**model_configuration, **kwargs}
         prompts = dict(bboxes=bboxes, points=points, labels=labels)
         return super().predict(source, stream, prompts=prompts, **kwargs)
 
@@ -30,4 +31,4 @@ class SAM(Model):
 
     @property
     def task_map(self):
-        return {"segment": {"predictor": Predictor}}
+        return {"segment": {"predictor": SAM2Predictor if self.is_sam2 else SamPredictor}}

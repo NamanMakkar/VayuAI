@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from pathlib import Path
 from vajra.checks import check_suffix, check_requirements
 from vajra.utils.downloads import attempt_download_asset
-from vajra.nn.modules import VajraStemBlock, VajraV2StemBlock, VajraStambh, SPPF, Concatenate, VajraStambhV2, VajraMerudandaV2Bhag1, VajraV2MerudandaBhag1, VajraGrivaV2Bhag1, VajraGrivaV2Bhag2, ADown, Bottleneck, MerudandaDW, VajraMerudandaBhag1, VajraMerudandaMS, VajraMerudandaBhag7, VajraMerudandaBhag2, VajraMerudandaBhag3, VajraMerudandaBhag5, VajraGrivaBhag1, VajraGrivaBhag2, VajraGrivaBhag3, VajraGrivaBhag4, VajraMerudandaBhag4, VajraMerudandaBhag7, VajraMBConvBlock, VajraConvNeXtBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, MaxPool, ImagePoolingAttention, VajraWindowAttnBottleneck, VajraV2BottleneckBlock, AttentionBottleneck, AttentionBottleneckV3, AttentionBottleneckV2, AttentionBottleneckV4, AttentionBottleneckV6, SanlayanSPPFAttention, DvayaSanlayan, VajraGrivaV2
+from vajra.nn.modules import VajraStemBlock, VajraV2StemBlock, VajraStambh, SPPF, Concatenate, VajraStambhV2, VajraMerudandaV2Bhag1, VajraV2MerudandaBhag1, VajraV2MerudandaBhag2, VajraGrivaV2Bhag1, VajraGrivaV2Bhag2, ADown, Bottleneck, MerudandaDW, VajraMerudandaBhag1, VajraMerudandaMS, VajraMerudandaBhag7, VajraMerudandaBhag2, VajraMerudandaBhag3, VajraMerudandaBhag5, VajraGrivaBhag1, VajraGrivaBhag2, VajraGrivaBhag3, VajraGrivaBhag4, VajraMerudandaBhag4, VajraMerudandaBhag7, VajraMBConvBlock, VajraConvNeXtBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, MaxPool, ImagePoolingAttention, VajraWindowAttnBottleneck, VajraV2BottleneckBlock, AttentionBottleneck, AttentionBottleneckV3, AttentionBottleneckV2, AttentionBottleneckV4, AttentionBottleneckV6, SanlayanSPPFAttention, DvayaSanlayan, VajraGrivaV2
 from vajra.nn.head import Detection, OBBDetection, Segementation, Classification, PoseDetection, WorldDetection, Panoptic
 from vajra.utils import LOGGER, HYPERPARAMS_CFG_DICT, HYPERPARAMS_CFG_KEYS
 from vajra.utils.torch_utils import model_info, initialize_weights, fuse_conv_and_bn, time_sync, intersect_dicts, scale_img
@@ -37,22 +37,22 @@ class VajraV2Model(nn.Module):
         self.conv2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
         self.vajra_block3 = VajraMerudandaBhag3(channels_list[3], channels_list[4], num_repeats[2], 1, True, inner_block=inner_block_list[2]) # stride 16
         self.conv3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
-        self.vajra_block4 = VajraMerudandaBhag3(channels_list[4], channels_list[4], num_repeats[3], 1, True, inner_block=inner_block_list[3]) # stride 32
+        self.vajra_block4 = VajraV2MerudandaBhag2(channels_list[4], channels_list[4], num_repeats[3], 1, True, inner_block=inner_block_list[3]) # stride 32
         self.pyramid_pool_attn = SanlayanSPPFAttention(2*channels_list[4], channels_list[4], 1, num_repeats[3])
         # Neck
         self.concat1 = Concatenate(in_c=[channels_list[4], channels_list[4]], dimension=1)
-        self.vajra_neck1 = VajraMerudandaBhag3(in_c=2 * channels_list[4], out_c=channels_list[6], num_blocks=num_repeats[4], kernel_size=1, shortcut=True, inner_block=inner_block_list[4])
+        self.vajra_neck1 = VajraV2MerudandaBhag2(in_c=2 * channels_list[4], out_c=channels_list[6], num_blocks=num_repeats[4], kernel_size=1, shortcut=True, inner_block=inner_block_list[4])
 
         self.concat2 = Concatenate(in_c=[channels_list[6], channels_list[3]], dimension=1)
         self.vajra_neck2 = VajraMerudandaBhag3(in_c=channels_list[6] + channels_list[3], out_c=channels_list[8], num_blocks=num_repeats[5], kernel_size=1, shortcut=True, inner_block=inner_block_list[5])
 
         self.neck_conv1 = ConvBNAct(channels_list[8], channels_list[9], 2, 3)
         self.concat3 = Concatenate(in_c=[channels_list[6], channels_list[9]], dimension=1)
-        self.vajra_neck3 = VajraMerudandaBhag3(in_c=channels_list[6] + channels_list[9], out_c=channels_list[10], num_blocks=num_repeats[6], kernel_size=1, shortcut=True, inner_block=inner_block_list[6])
+        self.vajra_neck3 = VajraV2MerudandaBhag2(in_c=channels_list[6] + channels_list[9], out_c=channels_list[10], num_blocks=num_repeats[6], kernel_size=1, shortcut=True, inner_block=inner_block_list[6])
 
         self.neck_conv2 = ConvBNAct(channels_list[10], channels_list[11], 2, 3)
         self.concat4 = Concatenate(in_c=[channels_list[11], channels_list[4]], dimension=1) #
-        self.vajra_neck4 = VajraMerudandaBhag3(in_c=channels_list[4] + channels_list[11], out_c=channels_list[12], num_blocks=num_repeats[7], kernel_size=1, shortcut=True, inner_block=inner_block_list[7])
+        self.vajra_neck4 = VajraV2MerudandaBhag2(in_c=channels_list[4] + channels_list[11], out_c=channels_list[12], num_blocks=num_repeats[7], kernel_size=1, shortcut=True, inner_block=inner_block_list[7])
 
     def forward(self, x):
         # Backbone
@@ -103,14 +103,14 @@ class VajraV2CLSModel(nn.Module):
         super().__init__()
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, [1, 3, 5, -1], -1]
         self.stem = VajraStambh(in_channels, channels_list[0], channels_list[1])
-        self.vajra_block1 = VajraMerudandaV2Bhag1(channels_list[1], channels_list[2], num_blocks=num_repeats[0], inner_block=inner_block_list[0], kernel_size=3) # stride 4
+        self.vajra_block1 = VajraMerudandaBhag3(channels_list[1], channels_list[2], num_repeats[0], 1, True, 0.25, False, inner_block_list[0]) # stride 4
         self.conv1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
-        self.vajra_block2 = VajraMerudandaV2Bhag1(channels_list[2], channels_list[3], num_blocks=num_repeats[1], inner_block=inner_block_list[1], kernel_size=5) # stride 8
+        self.vajra_block2 = VajraMerudandaBhag3(channels_list[2], channels_list[3], num_repeats[1], 1, True, 0.25, False, inner_block_list[1]) # stride 8
         self.conv2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
-        self.vajra_block3 = VajraMerudandaV2Bhag1(channels_list[3], channels_list[4], num_blocks=num_repeats[2], inner_block=inner_block_list[2], kernel_size=7) # stride 16
+        self.vajra_block3 = VajraMerudandaBhag3(channels_list[3], channels_list[4], num_repeats[2], 1, True, inner_block=inner_block_list[2]) # stride 16
         self.conv3 = ConvBNAct(channels_list[4], channels_list[4], 2, 3)
-        self.vajra_block4 = VajraMerudandaV2Bhag1(channels_list[4], channels_list[4], num_blocks=num_repeats[3], inner_block=inner_block_list[3], kernel_size=9) # stride 32
-        self.pyramid_pool_attn = SanlayanSPPFAttention(2 * channels_list[4], channels_list[4], 1, 2)
+        self.vajra_block4 = VajraV2MerudandaBhag2(channels_list[4], channels_list[4], num_repeats[3], 1, True, inner_block=inner_block_list[3]) # stride 32
+        self.pyramid_pool_attn = SanlayanSPPFAttention(2*channels_list[4], channels_list[4], 1, num_repeats[3])
 
     def forward(self, x):
         stem = self.stem(x)

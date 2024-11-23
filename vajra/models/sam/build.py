@@ -6,14 +6,39 @@ import torch
 
 from vajra.utils.downloads import attempt_download_asset
 from .modules.decoders import MaskDecoder
-from .modules.encoders import ImageEncoderViT, PromptEncoder
-from .modules.sam import Sam
+from .modules.encoders import ImageEncoderViT, PromptEncoder, FpnNeck, Hiera, ImageEncoder, MemoryEncoder
+from .modules.sam import SAMModel, SAM2Model
+from .modules.memory_attention import MemoryAttention, MemoryAttentionLayer
 from .modules.tiny_encoder import TinyViT
 from .modules.transformer import TwoWayTransformer
 
 def _build_sam(
-    encoder_embed_dim, encoder_depth, encoder_num_heads, encoder_global_attn_indexes, checkpoint=None, mobile_sam=False
+    encoder_embed_dim, 
+    encoder_depth, 
+    encoder_num_heads, 
+    encoder_global_attn_indexes, 
+    checkpoint=None, 
+    mobile_sam=False
 ):
+    """
+    Builds a Segment Anything Model (SAM) with specified encoder parameters.
+
+    Args:
+        encoder_embed_dim (int | List[int]): Embedding dimension for the encoder.
+        encoder_depth (int | List[int]): Depth of the encoder.
+        encoder_num_heads (int | List[int]): Number of attention heads in the encoder.
+        encoder_global_attn_indexes (List[int] | None): Indexes for global attention in the encoder.
+        checkpoint (str | None): Path to the model checkpoint file.
+        mobile_sam (bool): Whether to build a Mobile-SAM model.
+
+    Returns:
+        (SAMModel): A Segment Anything Model instance with the specified architecture.
+
+    Examples:
+        >>> sam = _build_sam(768, 12, 12, [2, 5, 8, 11])
+        >>> sam = _build_sam([64, 128, 160, 320], [2, 2, 6, 2], [2, 4, 5, 10], None, mobile_sam=True)
+    """
+
     prompt_embed_dim = 256
     image_size = 1024
     vit_patch_size = 16
@@ -51,7 +76,7 @@ def _build_sam(
             out_chans=prompt_embed_dim,
         )
     )
-    sam = Sam(
+    sam = SAMModel(
         image_encoder=image_encoder,
         prompt_encoder=PromptEncoder(
             embed_dim=prompt_embed_dim,
@@ -81,6 +106,100 @@ def _build_sam(
         sam.load_state_dict(state_dict)
     sam.eval()
     return sam
+
+def _build_sam2(
+    encoder_embed_dim=1280,
+    encoder_stages=[2, 6, 36, 4],
+    encoder_num_heads=2,
+    encoder_global_att_blocks=[7, 15, 23, 31],
+    encoder_backbone_channel_list=[1152, 576, 288, 144],
+    encoder_window_spatial_size=[7, 7],
+    encoder_window_spec=[8, 4, 16, 8],
+    checkpoint=None,
+):
+    """
+    Builds and returns a Segment Anything Model 2 (SAM2) with specified architecture parameters.
+
+    Args:
+        encoder_embed_dim (int): Embedding dimension for the encoder.
+        encoder_stages (List[int]): Number of blocks in each stage of the encoder.
+        encoder_num_heads (int): Number of attention heads in the encoder.
+        encoder_global_att_blocks (List[int]): Indices of global attention blocks in the encoder.
+        encoder_backbone_channel_list (List[int]): Channel dimensions for each level of the encoder backbone.
+        encoder_window_spatial_size (List[int]): Spatial size of the window for position embeddings.
+        encoder_window_spec (List[int]): Window specifications for each stage of the encoder.
+        checkpoint (str | None): Path to the checkpoint file for loading pre-trained weights.
+
+    Returns:
+        (SAM2Model): A configured and initialized SAM2 model.
+
+    Examples:
+        >>> sam2_model = _build_sam2(encoder_embed_dim=96, encoder_stages=[1, 2, 7, 2])
+        >>> sam2_model.eval()
+    """
+    image_encoder = ImageEncoder(
+        trunk=Hiera(
+            embed_dim=encoder_embed_dim,
+            num_heads=encoder_num_heads,
+            stages=encoder_stages,
+            global_att_blocks=encoder_global_att_blocks,
+            window_pos_embed_bkg_spatial_size=encoder_window_spatial_size,
+            window_spec=encoder_window_spec,
+        ),
+        neck=FpnNeck(
+            d_model=256,
+            backbone_channel_list=encoder_backbone_channel_list,
+            fpn_top_down_levels=[2, 3],
+            fpn_interp_model="nearest",
+        ),
+        scalp=1,
+    )
+    memory_attention = MemoryAttention(d_model=256, pos_enc_at_input=True, num_layers=4, layer=MemoryAttentionLayer())
+    memory_encoder = MemoryEncoder(out_dim=64)
+
+    is_sam2_1 = checkpoint is not None and "sam2.1" in checkpoint
+    sam2 = SAM2Model(
+        image_encoder=image_encoder,
+        memory_attention=memory_attention,
+        memory_encoder=memory_encoder,
+        num_maskmem=7,
+        image_size=1024,
+        sigmoid_scale_for_mem_enc=20.0,
+        sigmoid_bias_for_mem_enc=-10.0,
+        use_mask_input_as_output_without_sam=True,
+        directly_add_no_mem_embed=True,
+        use_high_res_features_in_sam=True,
+        multimask_output_in_sam=True,
+        iou_prediction_use_sigmoid=True,
+        use_obj_ptrs_in_encoder=True,
+        add_tpos_enc_to_obj_ptrs=True,
+        only_obj_ptrs_in_the_past_for_eval=True,
+        pred_obj_scores=True,
+        pred_obj_scores_mlp=True,
+        fixed_no_obj_ptr=True,
+        multimask_output_for_tracking=True,
+        use_multimask_token_for_obj_ptr=True,
+        multimask_min_pt_num=0,
+        multimask_max_pt_num=1,
+        use_mlp_for_obj_ptr_proj=True,
+        compile_image_encoder=False,
+        no_obj_embed_spatial=is_sam2_1,
+        proj_tpos_enc_in_obj_ptrs=is_sam2_1,
+        use_signed_tpos_enc_to_obj_ptrs=is_sam2_1,
+        sam_mask_decoder_extra_args=dict(
+            dynamic_multimask_via_stability=True,
+            dynamic_multimask_stability_delta=0.05,
+            dynamic_multimask_stability_thresh=0.98,
+        ),
+    )
+
+    if checkpoint is not None:
+        checkpoint = attempt_download_asset(checkpoint)
+        with open(checkpoint, "rb") as f:
+            state_dict = torch.load(f)["model"]
+        sam2.load_state_dict(state_dict)
+    sam2.eval()
+    return sam2
 
 def build_sam_vit_h(checkpoint=None):
     return _build_sam(
@@ -119,11 +238,64 @@ def build_mobile_sam(checkpoint=None):
         checkpoint=checkpoint,
     )
 
+def build_sam2_t(checkpoint=None):
+    return _build_sam2(
+        encoder_embed_dim=96,
+        encoder_stages=[1, 2, 7, 2],
+        encoder_num_heads=1,
+        encoder_global_att_blocks=[5, 7, 9],
+        encoder_window_spec=[8, 4, 14, 7],
+        encoder_backbone_channel_list=[768, 384, 192, 96],
+        checkpoint=checkpoint,
+    )
+
+def build_sam2_s(checkpoint=None):
+    return _build_sam2(
+        encoder_embed_dim=96,
+        encoder_stages=[1, 2, 11, 2], 
+        encoder_num_heads=1, 
+        encoder_global_att_blocks=[7, 10, 13],
+        encoder_window_spec=[8, 4, 14, 7],
+        encoder_backbone_channel_list=[768, 384, 192, 96],
+        checkpoint=checkpoint,
+    )
+
+def build_sam2_b(checkpoint=None):
+    return _build_sam2(
+        encoder_embed_dim=112,
+        encoder_stages=[2, 3, 16, 3],
+        encoder_num_heads=2,
+        encoder_global_att_blocks=[12, 16, 20],
+        encoder_window_spec=[8, 4, 14, 7],
+        encoder_window_spatial_size=[14, 14],
+        encoder_backbone_channel_list=[896, 448, 224, 112],
+        checkpoint=checkpoint,
+    )
+
+def build_sam2_l(checkpoint=None):
+    return _build_sam2(
+        encoder_embed_dim=144,
+        encoder_stages=[2, 6, 36, 4],
+        encoder_num_heads=2,
+        encoder_global_att_blocks=[23, 33, 43],
+        encoder_window_spec=[8, 4, 16, 8],
+        encoder_backbone_channel_list=[1152, 576, 288, 144],
+        checkpoint=checkpoint
+    )
+
 sam_model_map = {
     "sam_h.pt": build_sam_vit_h,
     "sam_l.pt": build_sam_vit_l,
     "sam_b.pt": build_sam_vit_b,
     "mobile_sam.pt": build_mobile_sam,
+    "sam2_t.pt": build_sam2_t,
+    "sam2_s.pt": build_sam2_s,
+    "sam2_b.pt": build_sam2_b,
+    "sam2_l.pt": build_sam2_l,
+    "sam2.1_t.pt": build_sam2_t,
+    "sam2.1_s.pt": build_sam2_s,
+    "sam2.1_b.pt": build_sam2_b,
+    "sam2.1_l.pt": build_sam2_l,
 }
 
 def build_sam(checkpoint="sam_b.pt"):
