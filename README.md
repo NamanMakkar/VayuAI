@@ -14,6 +14,15 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 <img width="90%" src="./vajra/assets/visdrone_val_performance_plot.png" alt="VajraV1 performance plot val">
 </p>
 
+## <div align="center">Performance on COCO Dataset</div>
+| Model                                                                                | size<br><sup>(pixels) | mAP<sup>val<br>50-95 | Speed<br><sup>RTX 4090 TensorRT10 Latency<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
+| ------------------------------------------------------------------------------------ | --------------------- | -------------------- | ------------------------------ | ----------------------------------- | ------------------ | ----------------- |
+| VajraV1-nano-det | 640                   | 41.2                       | 1.4                              | 3.32                | 8.0               |
+| VajraV1-small-det | 640                   | 47.7                      | 1.4                               | 12.36               | 27.7              |
+| VajraV1-medium-det | 640                   |                         | 1.8                               | 21.09               | 74.8              |
+| VajraV1-large-det | 640                   |                         | 2.4                               | 25.70               | 92.8             |
+| VajraV1-xlarge-det | 640                   |                        | 2.9                               | 57.75              | 207.8             |
+
 ## <div align="center">Performance on VisDrone Dataset</div>
 | Model                                                                                | size<br><sup>(pixels) | mAP<sup>test-dev<br>50-95 | mAP<sup>val<br>50-95 | Speed<br><sup>RTX 4090 TensorRT10 Latency<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
 | ------------------------------------------------------------------------------------ | --------------------- | -------------------- | ------------------------------ | ----------------------------------- | ------------------ | ----------------- |
@@ -62,7 +71,8 @@ train_results = model.train(
     data="coco8.yaml",
     epochs=100,
     img_size=640,
-    device="cpu"
+    device="cpu",
+    weight_decay=0.,
 )
 
 metrics = model.val()
@@ -102,6 +112,9 @@ path = model.export(format="engine", device=0, half=True)
 ❌ VajraV1-DEYO-seg (Coming Soon!)  
 ❌ VajraV1-DEYO-pose (Coming Soon!)  
 ✅ SAM  
+✅ SAM2  
+✅ FastSAM  
+✅ MobileSAM  
 ✅ EfficientNetV1  
 ✅ EfficientNetV2  
 ✅ VajraEffNetV1  

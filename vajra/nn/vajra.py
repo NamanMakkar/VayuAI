@@ -428,7 +428,7 @@ def build_vajra(in_channels,
     backbone_depth_mul = config_dict[size][0]
     neck_depth_mul = config_dict[size][1]
     width_mul = config_dict[size][2]
-    num_protos = 256 * width_mul
+    num_protos = make_divisible(256 * width_mul, 8)
     max_channels = config_dict[size][3]
     max_channels = make_divisible(max_channels, 8)
     inner_blocks_list = inner_blocks_config[size]

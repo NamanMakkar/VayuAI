@@ -3899,11 +3899,11 @@ class DistributedFocalLoss(nn.Module):
         return self.conv(x.view(batch, 4, self.in_c, anchors).transpose(2, 1).softmax(1)).view(batch, 4, anchors)
 
 class ProtoMaskModule(nn.Module):
-    def __init__(self, in_c, c_mid = 256, out_c = 32) -> None:
+    def __init__(self, in_c, c_mid=256, out_c=32) -> None:
         super().__init__()
-        self.conv1 = ConvBNAct(in_c = in_c, out_c = c_mid, kernel_size=3)
-        self.conv2 = ConvBNAct(in_c = c_mid, out_c = c_mid, kernel_size=3)
-        self.conv3 = ConvBNAct(in_c = c_mid, out_c=out_c)
+        self.conv1 = ConvBNAct(in_c, c_mid, 1, 3)
+        self.conv2 = ConvBNAct(c_mid, c_mid, 1, 3)
+        self.conv3 = ConvBNAct(c_mid, out_c, 1, 1)
         self.upsample = nn.ConvTranspose2d(c_mid, c_mid, 2, 2, 0, bias=True)
 
     def forward(self, x):

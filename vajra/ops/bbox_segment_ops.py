@@ -826,11 +826,14 @@ def process_mask(proto_masks, in_masks, bboxes, shape, upsample=False):
     ih, iw = shape
 
     masks = (in_masks @ proto_masks.float().view(c, -1)).view(-1, h, w)
+    width_ratio = w / iw
+    height_ratio = h / ih
+
     downsampled_bboxes = bboxes.clone()
-    downsampled_bboxes[:, 0] *= w/iw
-    downsampled_bboxes[:, 2] *= w/iw
-    downsampled_bboxes[:, 1] *= h/ih
-    downsampled_bboxes[:, 3] *= h/ih
+    downsampled_bboxes[:, 0] *= width_ratio
+    downsampled_bboxes[:, 2] *= width_ratio
+    downsampled_bboxes[:, 3] *= height_ratio
+    downsampled_bboxes[:, 1] *= height_ratio
 
     masks = crop_mask(masks, downsampled_bboxes)
     if upsample:

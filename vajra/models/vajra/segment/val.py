@@ -57,7 +57,7 @@ class SegmentationValidator(DetectionValidator):
             self.args.iou,
             labels=self.lb,
             multi_label=True,
-            agnostic=self.args.single_cls,
+            agnostic=self.args.single_cls or self.args.agnostic_nms,
             max_det=self.args.max_det,
             nc=self.num_classes
         )
@@ -129,6 +129,15 @@ class SegmentationValidator(DetectionValidator):
                 )
                 self.pred_to_json(predn, batch["im_file"][si], pred_masks)
 
+            if self.args.save_txt:
+                self.save_one_txt(
+                    predn,
+                    pred_masks,
+                    self.args.save_conf,
+                    pbatch["ori_shape"],
+                    self.save_dir / "labels" / f"{Path(batch['im_file'][si]).stem}.txt",
+                )
+
     def finalize_metrics(self, *args, **kwargs):
         self.metrics.speed = self.speed
         self.metrics.confusion_matrix = self.confusion_matrix
@@ -172,6 +181,17 @@ class SegmentationValidator(DetectionValidator):
             on_plot=self.on_plot,
         )
         self.plot_masks.clear()
+
+    def save_one_txt(self, predn, pred_masks, save_conf, shape, file):
+        from vajra.core.results import Results
+
+        Results(
+            np.zeros((shape[0], shape[1]), dtype=np.uint8),
+            path=None,
+            names=self.names,
+            boxes=predn[:, :6],
+            masks=pred_masks,
+        ).save_txt(file, save_conf=save_conf)
 
     def pred_to_json(self, predn, filename):
         from pycocotools.mask import encode

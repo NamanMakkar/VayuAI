@@ -672,7 +672,7 @@ class SegmentationMetrics(StringOps):
         self.bbox = Metrics()
         self.seg = Metrics()
         self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
-        self.task = 'segmentation'
+        self.task = 'segment'
 
     def process(self, tp, tp_mask, conf, pred_cls, target_cls):
         results_mask = ap_per_class(tp_mask, conf, pred_cls, target_cls,
