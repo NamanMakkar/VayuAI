@@ -247,7 +247,7 @@ class RepVGGDWPyConv2(nn.Module):
         super(RepVGGDWPyConv2, self).__init__()
         assert in_c == out_c, "In channels and out channels must be equal for DWPyConv2"
         self.conv1_1 = nn.Sequential(DepthwiseConvBNAct(in_c, in_c, kernel_size=3), ConvBNAct(in_c, out_c // 2, 1, 1))
-        self.conv1_2 = nn.Sequential(RepVGGDW(in_c, kernel_size=7), ConvBNAct(in_c, out_c // 2, 1, 1))
+        self.conv1_2 = nn.Sequential(RepVGGDW(in_c, kernel_size=5), ConvBNAct(in_c, out_c // 2, 1, 1))
         self.add = shortcut and in_c == out_c
 
     def forward(self, x):

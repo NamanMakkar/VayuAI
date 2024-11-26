@@ -18,7 +18,19 @@ import torch
 REPO = "NamanMakkar/VayuAI"
 GITHUB_ASSETS_NAMES = (
     [f'visdrone-best-vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')]
+    + [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small')]
 )
+
+GITHUB_ASSETS_DICT = {
+    "visdrone": {
+        "weights": [f'visdrone-best-vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')],
+        "version": "1.0.0"
+    },
+    "coco": {
+        "weights": [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small')],
+        "version": "1.0.1"
+    }
+}
 GITHUB_ASSETS_STEMS = [Path(k).stem for k in GITHUB_ASSETS_NAMES]
 
 def download(url, dir=Path.cwd(), unzip=True, delete=False, curl=False, threads=1, retry=3, exist_ok=False):
@@ -67,28 +79,6 @@ def url_getsize(url='https://ultralytics.com/images/bus.jpg'):
     response = requests.head(url, allow_redirects=True)
     return int(response.headers.get('content-length', -1))
 
-
-def safe_download(file, url, url2=None, min_bytes=1E0, error_msg=''):
-    # Attempts to download file from url or url2, checks and removes incomplete downloads < min_bytes
-    from utils.general import LOGGER
-
-    file = Path(file)
-    assert_msg = f"Downloaded file '{file}' does not exist or size is < min_bytes={min_bytes}"
-    try:  # url1
-        LOGGER.info(f'Downloading {url} to {file}...')
-        torch.hub.download_url_to_file(url, str(file), progress=LOGGER.level <= logging.INFO)
-        assert file.exists() and file.stat().st_size > min_bytes, assert_msg  # check
-    except Exception as e:  # url2
-        if file.exists():
-            file.unlink()  # remove partial downloads
-        LOGGER.info(f'ERROR: {e}\nRe-attempting {url2 or url} to {file}...')
-        os.system(f"curl -# -L '{url2 or url}' -o '{file}' --retry 3 -C -")  # curl download, retry and resume on fail
-    finally:
-        if not file.exists() or file.stat().st_size < min_bytes:  # check
-            if file.exists():
-                file.unlink()  # remove partial downloads
-            LOGGER.info(f"ERROR: {assert_msg}\n{error_msg}")
-        LOGGER.info('')
 
 def get_google_drive_file_info(link):
     file_id = link.split("/d/")[1].split("/view")[0]
@@ -344,7 +334,7 @@ def get_github_assets(repo="ultralytics/assets", version="latest", retry=False):
     data = r.json()
     return data["tag_name"], [x["name"] for x in data["assets"]]
 
-def attempt_download_asset(file, repo='NamanMakkar/VayuAI', release='v1.0.0', **kwargs):
+def attempt_download_asset(file, repo='NamanMakkar/VayuAI', release='v1.0.1', **kwargs):
     from vajra.utils import SETTINGS
     file = str(file)
     file = Path(file.strip().replace("'", ""))
@@ -366,6 +356,10 @@ def attempt_download_asset(file, repo='NamanMakkar/VayuAI', release='v1.0.0', **
                 safe_download(url=url, file=file, min_bytes=1e5, **kwargs)
 
         elif name in GITHUB_ASSETS_NAMES:
+            if "visdrone" in name:
+                release = GITHUB_ASSETS_DICT["visdrone"]["version"]
+            else:
+                release = GITHUB_ASSETS_DICT["coco"]["version"]
             safe_download(url=f"{download_url}/{release}/{name}", file=file, min_bytes=1e5, **kwargs)
         
         else:
