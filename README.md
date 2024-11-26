@@ -9,22 +9,21 @@ tasks like object detection and tracking, instance segmentation, oriented object
 ## <div align="center">Enterprise License</div>
 To request for an Enterprise License please get in touch via [Email](mailto:namansingh2803@gmail.com)
 
+## <div align="center">Performance on COCO Dataset</div>
+
+| Model                   | Size (pixels) | mAP<sup>val<br>50-95</sup> | Speed<br><sup>RTX 4090 TensorRT10 Latency (ms)</sup> | Params (M) | FLOPs (B) |
+|--------------------------|---------------|----------------------------|-----------------------------------------------------|------------|-----------|
+| VajraV1-nano-det         | 640           | 41.2                       | 1.4                                                 | 3.36       | 8.2       |
+| VajraV1-small-det        | 640           | 47.7                       | 1.4                                                 | 12.38      | 27.9      |
+| VajraV1-medium-det       | 640           |                            | 1.8                                                 | 21.15      | 75.1      |
+| VajraV1-large-det        | 640           |                            | 2.4                                                 | 25.75      | 93.1      |
+| VajraV1-xlarge-det       | 640           |                            | 2.9                                                 | 57.83      | 208.3     |
+
+
 <p align="center">
 <img width="90%" src="./vajra/assets/visdrone_testdev_performance_plot.png" alt="VajraV1 performance plot test dev">
 <img width="90%" src="./vajra/assets/visdrone_val_performance_plot.png" alt="VajraV1 performance plot val">
 </p>
-
-## <div align="center">Performance on COCO Dataset</div>
-## <div align="center">Performance on COCO Dataset</div>
-
-| Model              | Size (pixels) | mAP<sup>val<br>50-95</sup> | Speed<br><sup>RTX 4090 TensorRT10 Latency (ms)</sup> | Params (M) | FLOPs (B) |
-|---------------------|---------------|----------------------------|-----------------------------------------------------|------------|-----------|
-| VajraV1-nano-det    | 640           | 41.2                       | 1.4                                                 | 3.32       | 8.0       |
-| VajraV1-small-det   | 640           | 47.7                       | 1.4                                                 | 12.36      | 27.7      |
-| VajraV1-medium-det  | 640           |                            | 1.8                                                 | 21.09      | 74.8      |
-| VajraV1-large-det   | 640           |                            | 2.4                                                 | 25.70      | 92.8      |
-| VajraV1-xlarge-det  | 640           |                            | 2.9                                                 | 57.75      | 207.8     |
-
 
 ## <div align="center">Performance on VisDrone Dataset</div>
 | Model                                                                                | size<br><sup>(pixels) | mAP<sup>test-dev<br>50-95 | mAP<sup>val<br>50-95 | Speed<br><sup>RTX 4090 TensorRT10 Latency<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
