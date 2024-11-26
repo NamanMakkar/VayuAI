@@ -12,12 +12,13 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 ## <div align="center">Performance on COCO Dataset</div>
 
 | Model                                                                                | Size (pixels) | mAP<sup>val<br>50-95</sup> | Speed<br><sup>RTX 4090 TensorRT10 Latency (ms)</sup> | Params (M) | FLOPs (B) |
-| ------------------------------------------------------------------------------------ |---------------|----------------------------|-----------------------------------------------------|------------|-----------|
-| VajraV1-nano-det         | 640           | 41.2                       | 1.4                                                 | 3.36       | 8.2       |
-| VajraV1-small-det        | 640           | 47.7                       | 1.4                                                 | 12.38      | 27.9      |
-| VajraV1-medium-det       | 640           |                            | 1.8                                                 | 21.15      | 75.1      |
-| VajraV1-large-det        | 640           |                            | 2.4                                                 | 25.75      | 93.1      |
-| VajraV1-xlarge-det       | 640           |                            | 2.9                                                 | 57.83      | 208.3     |
+|-------------------------------------------------------------------------------------|---------------|----------------------------|-----------------------------------------------------|------------|-----------|
+| [VajraV1-nano-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.1/vajra-v1-nano-det.pt) | 640           | 41.2                       | 1.4                                                 | 3.36       | 8.2       |
+| [VajraV1-small-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.1/vajra-v1-small-det.pt)  | 640           | 47.7                       | 1.4                                                 | 12.38      | 27.9      |
+| VajraV1-medium-det                                                                   | 640           |                            | 1.8                                                 | 21.15      | 75.1      |
+| VajraV1-large-det                                                                    | 640           |                            | 2.4                                                 | 25.75      | 93.1      |
+| VajraV1-xlarge-det                                                                   | 640           |                            | 2.9                                                 | 57.83      | 208.3     |
+
 
 
 <p align="center">
