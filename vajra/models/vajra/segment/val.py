@@ -223,7 +223,7 @@ class SegmentationValidator(DetectionValidator):
 
     def eval_json(self, stats):
         if self.args.save_json and self.is_coco and len(self.jdict):
-            anno_json = self.data["path"] / "annotations/instances_val_2017.json"
+            anno_json = self.data["path"] / "annotations/instances_val2017.json"
             pred_json = self.save_dir / "predictions.json"
             LOGGER.info(f"\nEvaluating pycocotools mAP using {pred_json} and {anno_json}...")
             try:
