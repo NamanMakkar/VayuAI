@@ -178,7 +178,7 @@ class Trainer:
             else []
         )
         always_freeze_names = [".distributed_focal_loss"]
-        freeze_layer_names = [f"model.{x}." for x in freeze_list] + always_freeze_names
+        freeze_layer_names = [f"{x}" for x in freeze_list] + always_freeze_names #[f"model.{x}." for x in freeze_list]
         for k, v in self.model.named_parameters():
             if any(x in k for x in freeze_layer_names):
                 LOGGER.info(f"Freezing layer '{k}'")
