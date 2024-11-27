@@ -44,14 +44,14 @@ class VajraV2Model(nn.Module):
         self.vajra_neck1 = VajraV2MerudandaBhag2(in_c=2 * channels_list[4], out_c=channels_list[6], num_blocks=num_repeats[4], kernel_size=1, shortcut=True, inner_block=inner_block_list[4])
 
         self.concat2 = Concatenate(in_c=[channels_list[6], channels_list[3]], dimension=1)
-        self.vajra_neck2 = VajraMerudandaBhag3(in_c=channels_list[6] + channels_list[3], out_c=channels_list[8], num_blocks=num_repeats[5], kernel_size=1, shortcut=True, inner_block=inner_block_list[5])
+        self.vajra_neck2 = VajraMerudandaBhag3(in_c=channels_list[6] + channels_list[3], out_c=2*channels_list[8], num_blocks=num_repeats[5], kernel_size=1, shortcut=True, inner_block=inner_block_list[5])
 
         self.neck_conv1 = ConvBNAct(channels_list[8], channels_list[9], 2, 3)
         self.concat3 = Concatenate(in_c=[channels_list[6], channels_list[9]], dimension=1)
         self.vajra_neck3 = VajraV2MerudandaBhag2(in_c=channels_list[6] + channels_list[9], out_c=channels_list[10], num_blocks=num_repeats[6], kernel_size=1, shortcut=True, inner_block=inner_block_list[6])
 
         self.neck_conv2 = ConvBNAct(channels_list[10], channels_list[11], 2, 3)
-        self.concat4 = Concatenate(in_c=[channels_list[11], channels_list[4]], dimension=1) #
+        self.concat4 = Concatenate(in_c=[channels_list[11], channels_list[4]], dimension=1)
         self.vajra_neck4 = VajraV2MerudandaBhag2(in_c=channels_list[4] + channels_list[11], out_c=channels_list[12], num_blocks=num_repeats[7], kernel_size=1, shortcut=True, inner_block=inner_block_list[7])
 
     def forward(self, x):
@@ -80,8 +80,9 @@ class VajraV2Model(nn.Module):
         neck_upsample2 = F.interpolate(vajra_neck1, size=(H2, W2), mode="nearest")
         concat_neck2 = self.concat2([vajra2, neck_upsample2])
         vajra_neck2 = self.vajra_neck2(concat_neck2)
+        split_neck2, _ = vajra_neck2.split((vajra_neck2.out_c // 2, vajra_neck2.out_c // 2), 1)
 
-        neck_conv1 = self.neck_conv1(vajra_neck2)
+        neck_conv1 = self.neck_conv1(split_neck2)
         concat_neck3 = self.concat3([vajra_neck1, neck_conv1])
         vajra_neck3 = self.vajra_neck3(concat_neck3)
         vajra_neck3 = vajra_neck3 + vajra3 if self.vajra_neck3.out_c == self.vajra_block3.out_c else vajra_neck3

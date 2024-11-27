@@ -455,7 +455,13 @@ def build_vajra(in_channels,
             elif version == "v3":
                 model = VajraV3Model(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV3Model(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
 
-            head_channels = [channels_list[8], channels_list[10], channels_list[12]] if model_name.split("-")[1] != "deyo" else [vajra_deyo_channels_list[8], vajra_deyo_channels_list[10], vajra_deyo_channels_list[12]]
+            if model_name.split("-")[1] != "deyo":
+                if version != "v2":
+                    head_channels = [channels_list[8], channels_list[10], channels_list[12]]
+                else:
+                    head_channels = [2 * channels_list[8], channels_list[10], channels_list[12]]
+            else: 
+                head_channels = [vajra_deyo_channels_list[8], vajra_deyo_channels_list[10], vajra_deyo_channels_list[12]]
 
             if task == "detect":
                 if model_name.split("-")[1] == "deyo":

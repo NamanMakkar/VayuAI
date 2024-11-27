@@ -24,11 +24,11 @@ GITHUB_ASSETS_NAMES = (
 GITHUB_ASSETS_DICT = {
     "visdrone": {
         "weights": [f'visdrone-best-vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')],
-        "version": "1.0.0"
+        "version": "v1.0.0"
     },
     "coco": {
         "weights": [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small')],
-        "version": "1.0.1"
+        "version": "v1.0.1"
     }
 }
 GITHUB_ASSETS_STEMS = [Path(k).stem for k in GITHUB_ASSETS_NAMES]
