@@ -193,7 +193,7 @@ class SegmentationValidator(DetectionValidator):
             masks=pred_masks,
         ).save_txt(file, save_conf=save_conf)
 
-    def pred_to_json(self, predn, filename):
+    def pred_to_json(self, predn, filename, pred_masks):
         from pycocotools.mask import encode
 
         def single_encode(x):
