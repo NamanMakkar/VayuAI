@@ -337,7 +337,7 @@ class Trainer:
                 final_epoch = epoch + 1 == self.epochs
                 self.ema.update_attr(self.model, include=["yaml", "num_classes", "args", "names", "stride", "class_weights"])
 
-                if (self.args.val and (((epoch + 1) % self.args.val_period == 0) or (self.epochs - epoch) <= 10)) \
+                if (self.args.val and ((epoch + 1) >= self.args.val_start) and (((epoch + 1) % self.args.val_period == 0) or (self.epochs - epoch) <= 10)) \
                     or final_epoch or self.stopper.possible_stop or self.stop:
                     self.metrics, self.fitness = self.validate()
                 self.save_metrics(metrics={**self.label_loss_items(self.tloss), **self.metrics, **self.lr})
