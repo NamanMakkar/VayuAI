@@ -59,4 +59,4 @@ def on_predict_postprocess_end(predictor: object, persist: bool = False) -> None
 
 def register_tracker(model: object, persist: bool) -> None:
     model.add_callback("on_predict_start", partial(on_predict_start, persist=persist))
-    model.add_callbacl("on_predict_preprocess_end", partial(on_predict_postprocess_end, persist=persist))
+    model.add_callback("on_predict_preprocess_end", partial(on_predict_postprocess_end, persist=persist))

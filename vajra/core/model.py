@@ -183,6 +183,7 @@ class Model(nn.Module):
         args = {**self.model_configuration, **custom, **kwargs, "mode":"val"}
         validator = (validator or self._smart_load("validator"))(args=args, _callbacks=self.callbacks)
         validator(model=self.model)
+        self.metrics = validator.metrics
         return validator.metrics
 
     def benchmark(self, **kwargs):
@@ -275,10 +276,10 @@ class Model(nn.Module):
         return self.model.transforms if hasattr(self.model, "transforms") else None
     
     def add_callback(self, event: str, func) -> None:
-        self.callback[event].append(func)
+        self.callbacks[event].append(func)
 
     def clear_callback(self, event: str) -> None:
-        self.callback[event] = []
+        self.callbacks[event] = []
 
     def reset_callbacks(self) -> None:
         for event in default_callbacks.keys():

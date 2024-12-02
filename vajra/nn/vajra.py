@@ -459,7 +459,7 @@ def build_vajra(in_channels,
                 if version != "v2":
                     head_channels = [channels_list[8], channels_list[10], channels_list[12]]
                 else:
-                    head_channels = [2 * channels_list[8], channels_list[10], channels_list[12]]
+                    head_channels = [channels_list[8], channels_list[10], channels_list[12]]
             else: 
                 head_channels = [vajra_deyo_channels_list[8], vajra_deyo_channels_list[10], vajra_deyo_channels_list[12]]
 
