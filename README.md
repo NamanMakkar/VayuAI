@@ -21,7 +21,7 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 
 
 <p align="center">
-<img width="90%" src="./vajra/assets/vajra_v1_coco_dataset_performance.png" alt="VajraV1 Performance on COCO Dataset">
+<img width="100%" src="./vajra/assets/vajra_v1_coco_dataset_performance.png" alt="VajraV1 Performance on COCO Dataset">
 </p>
 
 ## <div align="center">Documentation</div>

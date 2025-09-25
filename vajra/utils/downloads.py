@@ -18,7 +18,7 @@ import torch
 REPO = "NamanMakkar/VayuAI"
 GITHUB_ASSETS_NAMES = (
     [f'visdrone-best-vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')]
-    + [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small')]
+    + [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')]
 )
 
 GITHUB_ASSETS_DICT = {
