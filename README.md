@@ -17,7 +17,7 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 | [VajraV1-small-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.2/vajra-v1-small-det.pt)  | 640           | 50.4                       | 1.1                                                 | 11.58      | 47.9      |
 | [VajraV1-medium-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.2/vajra-v1-medium-det.pt)  | 640           | 52.7                           | 1.5                                                 | 20.29      | 94.5      |
 | [VajraV1-large-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.2/vajra-v1-medium-det.pt)  | 640           | 53.7                           | 1.8                                                 | 24.63      | 115.2      |
-| [VajraV1-xlarge-det]((https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.2/vajra-v1-xlarge-det.pt)  | 640           | 56.2                           | 3.2                                                 | 72.7      | 208.3     |
+| [VajraV1-xlarge-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.2/vajra-v1-xlarge-det.pt)  | 640           | 56.2                           | 3.2                                                 | 72.7      | 208.3     |
 
 
 <p align="center">
@@ -53,9 +53,8 @@ vajra predict model=vajra-v1-nano-det img_size=640 source="path/to/source.jpg"
 Vajra can also be used directly in a Python environment, and accepts the same arguments as in the CLI example above:
 
 ```python
-from vajra import Vajra, VajraDEYO
+from vajra import Vajra
 model = Vajra("vajra-v1-nano-det")
-model_vajra_deyo = VajraDEYO("vajra-deyo-v1-nano-det")
 
 train_results = model.train(
     data="coco8.yaml",
@@ -72,11 +71,11 @@ results[0].show()
 path = model.export(format="onnx")
 ```
 
-Pretrained Visdrone weights can also be used for model inference 
+Pretrained COCO weights can also be used for model inference 
 
 ```python
 from vajra import Vajra
-model = Vajra("visdrone-best-vajra-v1-xlarge-det.pt")
+model = Vajra("vajra-v1-xlarge-det.pt")
 results = model("path/to/img.jpg")
 results[0].show()
 
@@ -90,21 +89,11 @@ path = model.export(format="engine", device=0, half=True)
 ✅ VajraV1-cls  
 ✅ VajraV1-pose  
 ✅ VajraV1-seg  
-✅ VajraV1-obb  
-✅ VajraV1-world  
-✅ VajraV1-DEYO-det  
-✅ VajraLiteV1-det  
-✅ VajraLiteV1-seg  
-✅ VajraLiteV1-obb  
-✅ VajraLiteV1-pose  
-✅ VajraLiteV1-cls  
-✅ VajraLiteV1-world  
-❌ VajraV1-DEYO-seg (Coming Soon!)  
-❌ VajraV1-DEYO-pose (Coming Soon!)  
+✅ VajraV1-obb
 ✅ SAM  
 ✅ SAM2  
 ✅ FastSAM  
-✅ MobileSAM  
+✅ MobileSAM 
 ✅ EfficientNetV1  
 ✅ EfficientNetV2  
 ✅ VajraEffNetV1  
