@@ -16,7 +16,7 @@ try:
     # Ensures certain logging functions only run for supported tasks
     COMET_SUPPORTED_TASKS = ["detect"]
 
-    # Names of plots created by YOLOv8 that are logged to Comet
+    # Names of plots that are logged to Comet
     EVALUATION_PLOT_NAMES = "F1_curve", "P_curve", "R_curve", "PR_curve", "confusion_matrix"
     LABEL_PLOT_NAMES = "labels", "labels_correlogram"
 
@@ -32,8 +32,8 @@ def _get_comet_mode():
 
 
 def _get_comet_model_name():
-    """Returns the model name for Comet from the environment variable 'COMET_MODEL_NAME' or defaults to 'YOLOv8'."""
-    return os.getenv("COMET_MODEL_NAME", "YOLOv8")
+    """Returns the model name for Comet from the environment variable 'COMET_MODEL_NAME' or defaults to 'VajraV1'."""
+    return os.getenv("COMET_MODEL_NAME", "VajraV1")
 
 
 def _get_eval_batch_logging_interval():
@@ -87,7 +87,7 @@ def _create_experiment(args):
                 "max_image_predictions": _get_max_image_predictions_to_log(),
             }
         )
-        experiment.log_other("Created from", "yolov8")
+        experiment.log_other("Created from", "vajra-v1")
 
     except Exception as e:
         LOGGER.warning(f"WARNING ⚠️ Comet installed but not initialized correctly, not logging this run. {e}")
@@ -111,7 +111,7 @@ def _fetch_trainer_metadata(trainer):
 
 def _scale_bounding_box_to_original_image_shape(box, resized_image_shape, original_image_shape, ratio_pad):
     """
-    YOLOv8 resizes images during training and the label values are normalized based on this resized shape.
+    VajraV1 resizes images during training and the label values are normalized based on this resized shape.
 
     This function rescales the bounding box labels to the original image shape.
     """

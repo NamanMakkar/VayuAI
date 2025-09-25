@@ -46,7 +46,7 @@ def save_dataset_cache_file(prefix, path, x):
 
 class VajraDetDataset(BaseDataset):
     def __init__(self, *args, data=None, task="detect", **kwargs):
-        """Initializes the YOLODataset with optional configurations for segments and keypoints."""
+        """Initializes the Dataset with optional configurations for segments and keypoints."""
         self.use_segments = task == "segment"
         self.use_keypoints = task == "pose" or task == "small_obj_detect"
         self.use_obb = task == "obb"
@@ -190,6 +190,11 @@ class VajraDetDataset(BaseDataset):
         hyp.mosaic = 0.0  # set mosaic ratio=0.0
         hyp.copy_paste = 0.0  # keep the same behavior as previous v8 close-mosaic
         hyp.mixup = 0.0  # keep the same behavior as previous v8 close-mosaic
+        self.transforms = self.build_transforms(hyp)
+
+    def change_scale(self, hyp):
+        """Change scale to 0.9 after a certain number of epochs"""
+        hyp.scale = 0.9
         self.transforms = self.build_transforms(hyp)
 
     def update_labels_info(self, label):
@@ -761,10 +766,9 @@ class MultiLabelClassificationDataset(BaseDataset):
 
     def close_mosaic(self, hyp):
         """Sets mosaic, copy_paste and mixup options to 0.0 and builds transformations."""
-        # @TODO: Can remove these I think. But not sure.
-        self.hyp.mosaic = 0.0  # set mosaic ratio=0.0
-        self.hyp.copy_paste = 0.0  # keep the same behavior as previous v8 close-mosaic
-        self.hyp.mixup = 0.0  # keep the same behavior as previous v8 close-mosaic
+        self.hyp.mosaic = 0.0
+        self.hyp.copy_paste = 0.0
+        self.hyp.mixup = 0.0
         self.transforms = self.build_transforms(self.hyp)
 
     def update_labels_info(self, label):

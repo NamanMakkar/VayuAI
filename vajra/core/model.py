@@ -243,8 +243,8 @@ class Model(nn.Module):
         else:
             from vajra.core.tuner import Tuner
             custom = {}
-            args = {**self.model_configuration, **custom, **kwargs}
-            return Tuner(args=args, _callbacks=self.callbacks)
+            args = {**self.model_configuration, **custom, **kwargs, "mode": "train"}
+            return Tuner(args=args, _callbacks=self.callbacks)(model=self, iterations=iterations)
 
     @staticmethod
     def _reset_checkpoint_args(args: dict) -> dict:

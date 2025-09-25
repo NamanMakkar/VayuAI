@@ -7,7 +7,7 @@ from .val import DEYODetectionValidator
 from vajra.nn.vajra import VajraDEYODetectionModel
 from vajra.utils import RANK, colorstr, LOGGER
 from vajra.models.vajra.detect import DetectionTrainer
-from vajra.new_optimizers import Lion, ADOPT, AdEMAMix, AdEMAMixDistributedShampoo
+from vajra.new_optimizers import Lion, AdEMAMix, AdEMAMixDistributedShampoo
 
 class DEYODetectionTrainer(DetectionTrainer):
     def get_validator(self):
@@ -52,8 +52,8 @@ class DEYODetectionTrainer(DetectionTrainer):
             optimizer = getattr(torch.optim, name, torch.optim.AdamW)(g_b, lr=lr, betas=(momentum, 0.999), weight_decay=decay)
         elif name == 'LION':
             optimizer = Lion(g_b, lr=lr, betas=(momentum, 0.99), weight_decay=decay)
-        elif name == "ADOPT":
-            optimizer = ADOPT(g_b, lr=lr, betas=(momentum, 0.99), weight_decay=decay)
+        #elif name == "ADOPT":
+            #optimizer = ADOPT(g_b, lr=lr, betas=(momentum, 0.99), weight_decay=decay)
         elif name == "AdEMAMix":
             optimizer = AdEMAMix(g_b, lr=lr, betas=(momentum, 0.999, 0.9999), weight_decay=decay)
         elif name == "AdEMAMixShampoo":

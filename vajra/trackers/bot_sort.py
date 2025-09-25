@@ -86,7 +86,7 @@ class BOTrack(STrack):
 class BOTSORT(BYTETracker):
 
     def __init__(self, args, frame_rate=30):
-        """Initialize YOLOv8 object with ReID module and GMC algorithm."""
+        """Initialize VajraV1 object with ReID module and GMC algorithm."""
         super().__init__(args, frame_rate)
         # ReID module
         self.proximity_thresh = args.proximity_thresh

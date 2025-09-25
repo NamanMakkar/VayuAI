@@ -11,7 +11,7 @@ def auto_annotate(data, det_model="vajra-v1-nano-det", sam_model="sam_b.pt", dev
 
     Args:
         data (str): Path to a folder containing images to be annotated.
-        det_model (str, optional): Pre-trained Vajra detection model. Defaults to 'yolov8x.pt'.
+        det_model (str, optional): Pre-trained Vajra detection model. Defaults to 'vajra-v1-nano-det.pt'.
         sam_model (str, optional): Pre-trained SAM segmentation model. Defaults to 'sam_b.pt'.
         device (str, optional): Device to run the models on. Defaults to an empty string (CPU or GPU, if available).
         output_dir (str | None | optional): Directory to save the annotated results.

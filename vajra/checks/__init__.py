@@ -267,8 +267,8 @@ def check_file(file, suffix="", download=True, strict=True):
 def check_yaml(file, suffix=(".yaml", ".yml"), hard=True):
     return check_file(file, suffix, strict=hard)
 
-def check_model_file_from_stem(model='vajra-v1-nano'):
-    if model and not Path(model).suffix and Path(model).stem in downloads.GITHUB_ASSETS_STEMS:
+def check_model_file_from_stem(model='vajra-v1-nano', pretrained=True):
+    if model and not Path(model).suffix and Path(model).stem in downloads.GITHUB_ASSETS_STEMS and pretrained:
         return Path(model).with_suffix(".pt")
     else:
         return model

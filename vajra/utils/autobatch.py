@@ -10,20 +10,11 @@ from vajra.utils.torch_utils import profile, autocast
 
 
 def check_train_batch_size(model, img_size=640, amp=True):
-    # Check YOLOv5 training batch size
     with autocast(amp):
         return autobatch(deepcopy(model).train(), img_size)  # compute optimal batch size
 
 
 def autobatch(model, img_size=640, fraction=0.8, batch_size=HYPERPARAMS_CFG.batch):
-    # Automatically estimate best YOLOv5 batch size to use `fraction` of available CUDA memory
-    # Usage:
-    #     import torch
-    #     from utils.autobatch import autobatch
-    #     model = torch.hub.load('ultralytics/yolov5', 'yolov5s', autoshape=False)
-    #     print(autobatch(model))
-
-    # Check device
     prefix = colorstr('AutoBatch: ')
     LOGGER.info(f'{prefix}Computing optimal batch size for img_size = {img_size}')
     device = next(model.parameters()).device  # get model device

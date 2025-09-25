@@ -1,0 +1,222 @@
+# Combined COCO and VisDrone Dataset Configuration
+# Example usage: vajra train data=combined.yaml
+# parent
+# ├── vajra
+# └── data
+#     └── combined  ← downloads here (combined dataset)
+
+# Dataset paths
+path: ../data/combined  # combined dataset root dir
+train: train  # combined train images and annotations
+val: val  # combined val images and annotations
+test: test  # optional combined test images and annotations
+
+# Combined Classes (COCO + mapped VisDrone)
+names:
+  0: person
+  1: bicycle
+  2: car
+  3: motorcycle
+  4: airplane
+  5: bus
+  6: train
+  7: truck
+  8: boat
+  9: traffic light
+  10: fire hydrant
+  11: stop sign
+  12: parking meter
+  13: bench
+  14: bird
+  15: cat
+  16: dog
+  17: horse
+  18: sheep
+  19: cow
+  20: elephant
+  21: bear
+  22: zebra
+  23: giraffe
+  24: backpack
+  25: umbrella
+  26: handbag
+  27: tie
+  28: suitcase
+  29: frisbee
+  30: skis
+  31: snowboard
+  32: sports ball
+  33: kite
+  34: baseball bat
+  35: baseball glove
+  36: skateboard
+  37: surfboard
+  38: tennis racket
+  39: bottle
+  40: wine glass
+  41: cup
+  42: fork
+  43: knife
+  44: spoon
+  45: bowl
+  46: banana
+  47: apple
+  48: sandwich
+  49: orange
+  50: broccoli
+  51: carrot
+  52: hot dog
+  53: pizza
+  54: donut
+  55: cake
+  56: chair
+  57: couch
+  58: potted plant
+  59: bed
+  60: dining table
+  61: toilet
+  62: tv
+  63: laptop
+  64: mouse
+  65: remote
+  66: keyboard
+  67: cell phone
+  68: microwave
+  69: oven
+  70: toaster
+  71: sink
+  72: refrigerator
+  73: book
+  74: clock
+  75: vase
+  76: scissors
+  77: teddy bear
+  78: hair drier
+  79: toothbrush
+  80: van
+  81: tricycle
+
+# Download and preprocess script
+download: |
+  from vajra.utils.downloads import download
+  from pathlib import Path
+  import shutil
+
+  # Dataset directories
+  segments = True
+  coco_dir = Path('../data/coco')
+  visdrone_dir = Path('../data/VisDrone')
+  combined_dir = Path(yaml['path'])
+
+  url_coco_labels = 'https://github.com/ultralytics/assets/releases/download/v0.0.0/'
+  urls_coco_labels = [url_coco_labels + ('coco2017labels-segments.zip' if segments else 'coco2017labels.zip')]  # labels
+  download(urls_coco_labels, dir=coco_dir.parent)
+
+  # URLs for downloading datasets
+  coco_urls = [
+      'http://images.cocodataset.org/zips/train2017.zip',
+      'http://images.cocodataset.org/zips/val2017.zip',
+      'http://images.cocodataset.org/zips/test2017.zip'
+  ]
+  visdrone_urls = [
+      'https://github.com/ultralytics/assets/releases/download/v0.0.0/VisDrone2019-DET-train.zip',
+      'https://github.com/ultralytics/assets/releases/download/v0.0.0/VisDrone2019-DET-val.zip',
+      'https://github.com/ultralytics/assets/releases/download/v0.0.0/VisDrone2019-DET-test-dev.zip'
+  ]
+
+  def visdrone2yolo(dir):
+      from PIL import Image
+      from tqdm import tqdm
+
+      def convert_box(size, box):
+          # Convert VisDrone box to YOLO xywh box
+          dw = 1. / size[0]
+          dh = 1. / size[1]
+          return (box[0] + box[2] / 2) * dw, (box[1] + box[3] / 2) * dh, box[2] * dw, box[3] * dh
+
+      (dir / 'labels').mkdir(parents=True, exist_ok=True)  # make labels directory
+      pbar = tqdm((dir / 'annotations').glob('*.txt'), desc=f'Converting {dir}')
+      for f in pbar:
+          img_size = Image.open((dir / 'images' / f.name).with_suffix('.jpg')).size
+          lines = []
+          with open(f, 'r') as file:  # read annotation.txt
+              for row in [x.split(',') for x in file.read().strip().splitlines()]:
+                  if row[4] == '0':  # VisDrone 'ignored regions' class 0
+                      continue
+                  cls = int(row[5]) - 1
+                  cls = map_visdrone_to_coco(cls)
+                  box = convert_box(img_size, tuple(map(int, row[:4])))
+                  if cls != -1:
+                      lines.append(f"{cls} {' '.join(f'{x:.6f}' for x in box)}\n")
+                  with open(str(f).replace(f'{os.sep}annotations{os.sep}', f'{os.sep}labels{os.sep}'), 'w') as fl:
+                      fl.writelines(lines)  # write label.txt
+
+  def map_visdrone_to_coco(class_id):
+    
+      # Map VisDrone classes to COCO: people/pedestrian -> person, motor -> motorcycle
+    mapping = {
+          0: 0,  # pedestrian -> person
+          1: 0,  # people -> person
+          2: 1,  # bicycle
+          3: 2,  # car
+          4: 80, # van
+          5: 7,  # truck
+          6: 81, # tricycle
+          7: 81, # awning-tricycle -> tricycle
+          8: 5,  # bus
+          9: 3,  # motor -> motorcycle
+    }
+    return mapping.get(class_id, -1)  # -1 for ignored classes
+
+  def merge_annotations_and_images(dataset_dir, split, mapping_function, data_name):
+    from glob import glob
+    if "visdrone" in data_name:
+        img_dir = dataset_dir / f'{split}/images'
+        label_dir = dataset_dir / f'{split}/labels'
+    else:
+        img_dir = dataset_dir / f'images/{split}2017'
+        label_dir = dataset_dir / f'labels/{split}2017'
+
+    combined_img_dir = combined_dir / split / 'images'
+    combined_label_dir = combined_dir / split / 'labels'
+
+    combined_img_dir.mkdir(parents=True, exist_ok=True)
+    combined_label_dir.mkdir(parents=True, exist_ok=True)
+
+    labels = glob(f"{label_dir}/*.txt", recursive=True)
+    img_paths = []
+    for i, label in enumerate(labels):
+        label = Path(label)
+        img_path = [(img_dir / label.with_suffix(sfx).name) for sfx in [".jpg", ".png", ".PNG", ".JPG"]]
+        img_path = [pth for pth in img_path if pth.exists()][0]
+        img_paths.append(img_path)
+        
+    for img_file in img_paths:
+          # Copy image
+        combined_img_path = combined_img_dir / img_file.name
+        combined_img_path.write_bytes(img_file.read_bytes())
+
+        # Process annotation
+        label_file = label_dir / f"{img_file.stem}.txt"
+        if label_file.exists():
+            new_labels = []
+            with open(label_file, 'r') as lf:
+                for line in lf:
+                    parts = line.strip().split()
+                    class_id = mapping_function(int(parts[0]))
+                    if class_id != -1:  # Ignore classes not in COCO
+                        parts[0] = str(class_id)
+                        new_labels.append(' '.join(parts))
+              # Write filtered annotations
+            if new_labels:
+                with open(combined_label_dir / label_file.name, 'w') as clf:
+                    clf.write('\n'.join(new_labels) + '\n')
+
+  # Download datasets
+  download(coco_urls, dir=coco_dir / 'images', threads=3)
+  download(visdrone_urls, dir=visdrone_dir, threads=4)
+
+  # Merge datasets
+  for split in ['train', 'val']:
+      merge_annotations_and_images(coco_dir, split, lambda x: x, "coco")  # COCO: Keep as-is
+      merge_annotations_and_images(visdrone_dir, split, map_visdrone_to_coco, "visdrone")  # VisDrone: Map to COCO

@@ -45,7 +45,7 @@ def handle_settings(args: List[str]) -> None:
 
 def manage(debug=""):
     args = (debug.split(" ") if debug else sys.argv)[1:]
-
+    #LOGGER.info(f"\nDEBUG: Printing args: {args}\n")
     if not args:
         LOGGER.info(CLI_HELP_MESSAGE)
         return
@@ -66,7 +66,6 @@ def manage(debug=""):
     special = {**special, **{f"-{k}":v for k, v in special.items()}, **{f"--{k}": v for k, v in special.items()}}
 
     model_configuration = {}
-
     for a in merge_equals_args(args):
         if a.startswith("--"):
             LOGGER.warning(f"WARNING! argument '{a}' does not require leading dashes '--', updating to '{a[2:]}'. ")
@@ -78,7 +77,6 @@ def manage(debug=""):
             try:
                 k, v = parse_key_value_pair(a)
                 if k == "hyp-config" and v is not None:
-                    LOGGER.info(f"Overriding {HYPERPARAMS_CFG_PATH} with {v}")
                     model_configuration = {k: val for k, val in yaml_load(checks.check_yaml(v)).items() if k != "hyp-config"}
                 else:
                     model_configuration[k] = v
@@ -118,7 +116,7 @@ def manage(debug=""):
     
     model = model_configuration.pop("model", HYPERPARAMS_CFG.model)
     if model is None:
-        model = "vajra-v1-det-nano.pt"
+        model = "vajra-v1-nano-det.pt"
         LOGGER.warning(f"WARNING! 'model' argument is missing. Using default 'model={model}'.")
     model_configuration["model"] = model
     stem = Path(model).stem.lower()
@@ -162,8 +160,6 @@ def manage(debug=""):
             LOGGER.warning(f"WARNING! 'format' argument is missing. Using default 'format={model_configuration['format']}'.")
 
     getattr(model, mode)(**model_configuration)
-
-    #LOGGER.info(f"Learn more at: ")
 
 if __name__ == "__main__":
     manage(debug="")

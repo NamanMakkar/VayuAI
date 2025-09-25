@@ -234,9 +234,9 @@ def polygons2masks_overlap(imgsz, segments, downsample_ratio=1):
     )
     areas = []
     ms = []
-    for si in range(len(segments)):
-        mask = polygon2mask(imgsz, [segments[si].reshape(-1)], downsample_ratio=downsample_ratio, color=1)
-        ms.append(mask)
+    for segment in segments:
+        mask = polygon2mask(imgsz, [segment.reshape(-1)], downsample_ratio=downsample_ratio, color=1)
+        ms.append(mask.astype(masks.dtype))
         areas.append(mask.sum())
     areas = np.asarray(areas)
     index = np.argsort(-areas)
@@ -360,13 +360,21 @@ def check_det_dataset(dataset, autodownload=True, add_kpts=False):
     #check_font("Arial.ttf" if is_ascii(data["names"]) else "Arial.Unicode.ttf")  # download fonts
     if add_kpts:
         data["kpt_shape"] = (1, 3)
+        data["flip_idx"] = [0]
         from glob import glob
-        labels = glob(f"{path}/*/labels/*.txt", recursive=True)
+        labels = glob(f"{path}/*/labels/*.txt", recursive=True) if "coco" not in Path(path).name else glob(f"{path}/labels/**/*.txt", recursive=True)
         for i, label in enumerate(labels):
             label = Path(label)
-            split = label.parent.parent.name
-            img_path = [(path / split / "images" / label.with_suffix(sfx).name)
-                for sfx in [".png", ".jpg", ".PNG", ".JPG"]]
+            if "coco" in Path(path).name:
+                #split = label.parent.parent.parent.name
+                img_path = [(path / "images" / label.parent.name / label.with_suffix(sfx).name) for sfx in [".png", ".jpg", ".PNG", ".JPG"]]
+
+            else:
+                split = label.parent.parent.name
+                img_path = [(path / split / "images" / label.with_suffix(sfx).name) for sfx in [".png", ".jpg", ".PNG", ".JPG"]]
+
+            #split = label.parent.parent.parent.name if "coco" in path else label.parent.parent.name
+            #img_path = [(path / split / "images" / label.with_suffix(sfx).name) for sfx in [".png", ".jpg", ".PNG", ".JPG"]] if "coco" not in path else img_path = [(path / split / "images" / label.parent.name / label.with_suffix(sfx).name) for sfx in [".png", ".jpg", ".PNG", ".JPG"]]
             img_path = [pth for pth in img_path if pth.exists()][0]
             classes = []
             boxes = []
@@ -423,7 +431,7 @@ def check_cls_dataset(dataset, split=""):
         LOGGER.warning(f"\nDataset not found ⚠️, missing path {data_dir}, attempting download...")
         t = time.time()
         if str(dataset) == "imagenet":
-            subprocess.run(f"bash {ROOT / 'data/scripts/get_imagenet.sh'}", shell=True, check=True)
+            subprocess.run(f"bash {ROOT / 'dataset/scripts/get_imagenet.sh'}", shell=True, check=True)
         else:
             url = f"https://github.com/ultralytics/yolov5/releases/download/v1.0/{dataset}.zip"
             download(url, dir=data_dir.parent)

@@ -18,7 +18,7 @@ import yaml
 from vajra.distributed import ddp_cleanup, generate_ddp_command
 from tqdm import tqdm
 from vajra.nn.vajra import load_weight, load_ensemble_weights
-from vajra.new_optimizers import Lion, ADOPT, AdEMAMix, AdEMAMixDistributedShampoo
+from vajra.new_optimizers import Lion, AdEMAMix, AdEMAMixDistributedShampoo
 from vajra.utils.autobatch import check_train_batch_size
 from vajra.configs import get_config, get_save_dir
 from vajra.utils import (
@@ -71,7 +71,7 @@ class Trainer:
         if self.device.type in ('cpu', 'mps'):
             self.args.workers = 0
 
-        self.model = check_model_file_from_stem(self.args.model)
+        self.model = check_model_file_from_stem(self.args.model, self.args.pretrained)
 
         try:
             if self.args.task == "classify":
@@ -156,7 +156,7 @@ class Trainer:
         torch.cuda.set_device(RANK)
         self.device = torch.device("cuda", RANK)
 
-        os.environ["NCCL_BLOCKING_WAIT"] = "1"
+        os.environ["TORCH_NCCL_BLOCKING_WAIT"] = "1"
         dist.init_process_group(
             "nccl" if dist.is_nccl_available() else "gloo",
             timeout=timedelta(seconds=10800),
@@ -179,6 +179,7 @@ class Trainer:
         )
         always_freeze_names = [".distributed_focal_loss"]
         freeze_layer_names = [f"{x}" for x in freeze_list] + always_freeze_names #[f"model.{x}." for x in freeze_list]
+        self.freeze_layer_names = freeze_layer_names
         for k, v in self.model.named_parameters():
             if any(x in k for x in freeze_layer_names):
                 LOGGER.info(f"Freezing layer '{k}'")
@@ -243,6 +244,14 @@ class Trainer:
         self.scheduler.last_epoch = self.start_epoch - 1
         self.run_callbacks("on_pretrain_routine_end")
 
+    def _model_train(self):
+        self.model.train()
+
+        for n, m in self.model.named_modules():
+            if any(filter(lambda f: f in n, self.freeze_layer_names)) and isinstance(m, torch.nn.BatchNorm2d):
+                m.eval()
+
+
     def _do_train(self, world_size=1):
         if world_size > 1:
             self._setup_ddp(world_size)
@@ -275,13 +284,15 @@ class Trainer:
             if epoch == (self.epochs - self.args.close_mosaic):
                 self._close_dataloader_mosaic()
                 self.train_loader.reset()
+            if (self.args.scale_change_bool and self.epoch == self.args.scale_change_epoch):
+                self._change_dataloader_img_scale()
+                self.train_loader.reset()
             if RANK in (-1, 0):
                 LOGGER.info(self.progress_string())
                 pbar = TQDM(enumerate(self.train_loader), total=num_batches)
             self.tloss = None
             self.optimizer.zero_grad()
             for i, batch in pbar:
-                #LOGGER.info(f'Bboxes: {batch["bboxes"]}\n')
                 self.run_callbacks("on_train_batch_start")
                 num_iters = i + num_batches * epoch
                 if num_iters <= num_warmup_iters:
@@ -294,8 +305,6 @@ class Trainer:
 
                 with autocast(self.amp):
                     batch = self.preprocess_batch(batch)
-                    #LOGGER.info(f"Image device: {batch['img'].device}\n")
-                    #LOGGER.info(f"Bboxes device: {batch['bboxes'].device}\n")
                     self.loss, self.loss_items = self.model(batch)
                     if RANK != -1:
                         self.loss *= world_size
@@ -371,7 +380,7 @@ class Trainer:
                 broadcast_list = [self.stop if RANK == 0 else None]
                 dist.broadcast_object_list(broadcast_list, 0)
                 self.stop = broadcast_list[0]
-            if self.stop:
+            if self.stop or (epoch == self.args.stop_epoch):
                 break
 
             epoch += 1
@@ -446,6 +455,7 @@ class Trainer:
 
     def validate(self):
         metrics = self.validator(self)
+        #LOGGER.info(f"\nVal Box loss: {metrics['val/box_loss']}\nVal CLS loss: {metrics['val/cls_loss']}\nVal DFL loss: {metrics['val/dfl_loss']}\n")
         fitness = metrics.pop("fitness", -self.loss.detach().cpu().numpy())
         if not self.best_fitness or self.best_fitness < fitness:
             self.best_fitness = fitness
@@ -575,6 +585,11 @@ class Trainer:
             LOGGER.info("Closing dataloader mosaic")
             self.train_loader.dataset.close_mosaic(hyp=self.args)
 
+    def _change_dataloader_img_scale(self):
+        if hasattr(self.train_loader.dataset, "change_scale"):
+            LOGGER.info("Changing scale to 0.9")
+            self.train_loader.dataset.change_scale(hyp=self.args)
+
     def build_optimizer(self, model, name='auto', lr=0.001, momentum=0.9, decay=1e-5, iterations=1e5):
         g_bnw, g_w, g_b = [], [], []
 
@@ -603,8 +618,8 @@ class Trainer:
             optimizer = getattr(torch.optim, name, torch.optim.AdamW)(g_b, lr=lr, betas=(momentum, 0.999), weight_decay=decay)
         elif name == 'LION':
             optimizer = Lion(g_b, lr=lr, betas=(momentum, 0.99), weight_decay=decay)
-        elif name == "ADOPT":
-            optimizer = ADOPT(g_b, lr=lr, betas=(momentum, 0.99), weight_decay=decay)
+        #elif name == "ADOPT":
+            #optimizer = ADOPT(g_b, lr=lr, betas=(momentum, 0.99), weight_decay=decay)
         elif name == "AdEMAMix":
             optimizer = AdEMAMix(g_b, lr=lr, betas=(momentum, 0.999, 0.9999), weight_decay=decay)
         elif name == "AdEMAMixShampoo":

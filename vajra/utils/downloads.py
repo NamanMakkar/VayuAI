@@ -27,8 +27,8 @@ GITHUB_ASSETS_DICT = {
         "version": "v1.0.0"
     },
     "coco": {
-        "weights": [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small')],
-        "version": "v1.0.1"
+        "weights": [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small', "medium", "large", "xlarge")],
+        "version": "v1.0.2"
     }
 }
 GITHUB_ASSETS_STEMS = [Path(k).stem for k in GITHUB_ASSETS_NAMES]

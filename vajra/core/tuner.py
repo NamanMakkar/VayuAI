@@ -53,7 +53,7 @@ class Tuner:
 
     def _mutate(self, parent="single", n=5, mutation=0.8, sigma=0.2):
         if self.tune_csv.exists():
-            x = np.loadtxt(self.tune_csv, ndim=2, delimiter=",", skiprows=1)
+            x = np.loadtxt(self.tune_csv, ndmin=2, delimiter=",", skiprows=1)
             fitness = x[:, 0]
             n = min(n, len(x))
             x = x[np.argsort(-fitness)][:n]
@@ -98,8 +98,9 @@ class Tuner:
             weights_dir = save_dir / "weights"
             try:
                 cmd = ["vajra", "train", *(f"{k}={v}" for k, v in train_args.items())]
+                LOGGER.info(f"\nDebugging command: {cmd}\n")
                 return_code = subprocess.run(cmd, check=True).returncode
-                checkpt_file = weights_dir / ("best.pt" if (weights_dir / "best.pt").exists() else "last.pt")
+                checkpt_file = weights_dir / ("best-vajra-v1-medium-det.pt" if (weights_dir / "best-vajra-v1-medium-det.pt").exists() else "last-vajra-v1-medium-det.pt")
                 metrics = torch.load(checkpt_file)["train_metrics"]
                 assert return_code == 0, "training failed"
             except Exception as e:
@@ -112,7 +113,7 @@ class Tuner:
             with open(self.tune_csv, "a") as f:
                 f.write(headers + ",".join(map(str, log_row)) + "\n")
             
-            x = np.loadtxt(self.tune_csv, ndim=2, delimiter=",", skiprows=1)
+            x = np.loadtxt(self.tune_csv, ndmin=2, delimiter=",", skiprows=1)
             fitness = x[:, 0]
             best_idx = fitness.argmax()
             best_is_current = best_idx == i

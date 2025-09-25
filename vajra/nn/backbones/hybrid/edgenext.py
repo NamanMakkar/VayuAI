@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from vajra.nn.modules import Conv, ConvBNAct, Linear, ConvEncoder_BNHS_EdgeNeXt, ConvEncoder_BNHS_EdgeNeXt_GRN, SDTAEncoderBNHS, SDTAEncoderBNHS_GRN, LayerNorm, PositionalEncodingFourier, trunc_normal_
-from vajra.nn.head import Classification, Detection, PoseDetection, Segementation, OBBDetection
+from vajra.nn.head import Classification, Detection, PoseDetection, Segmentation, OBBDetection
 from vajra.utils import LOGGER
 
 class EdgeNeXtBNHS(nn.Module):

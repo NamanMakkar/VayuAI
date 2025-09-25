@@ -33,8 +33,8 @@ class ClassificationValidator(Validator):
 
     def update_metrics(self, preds, batch):
         n5 = min(len(self.names), 5)
-        self.pred.append(preds.argsort(1, descending=True)[:, :n5])
-        self.targets.append(batch["cls"])
+        self.pred.append(preds.argsort(1, descending=True)[:, :n5].type(torch.int32).cpu())
+        self.targets.append(batch["cls"].type(torch.int32).cpu())
 
     def finalize_metrics(self, *args, **kwargs):
         self.confusion_matrix.process_cls_preds(self.pred, self.targets)
@@ -46,6 +46,9 @@ class ClassificationValidator(Validator):
         self.metrics.speed = self.speed
         self.metrics.confusion_matrix = self.confusion_matrix
         self.metrics.save_dir = self.save_dir
+
+    def postprocess(self, preds):
+        return preds[0] if isinstance(preds, (list, tuple)) else preds
 
     def get_stats(self):
         self.metrics.process(self.targets, self.pred)

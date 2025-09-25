@@ -4,7 +4,7 @@ import math
 import torch
 import torch.nn as nn
 from vajra.nn.modules import FusedMBConvEffNet, MBConvEffNet, ConvBNAct, Sanlayan, ChatushtayaSanlayan, VajraMerudandaBhag1
-from vajra.nn.head import Classification, Detection, PoseDetection, OBBDetection, Segementation
+from vajra.nn.head import Classification, Detection, PoseDetection, OBBDetection, Segmentation
 from vajra.utils import LOGGER
 from vajra.ops import make_divisible
 
@@ -241,7 +241,7 @@ def build_effnetv2(in_channels,
         if task == "detect":
             head = Detection(num_classes, head_channels)
         elif task == "segment":
-            head = Segementation(num_classes, in_channels=head_channels)
+            head = Segmentation(num_classes, in_channels=head_channels)
         elif task == "pose":
             head = PoseDetection(num_classes, in_channels=head_channels, keypoint_shape=kpt_shape if any(kpt_shape) else (17, 3))
         elif task == "obb":

@@ -46,8 +46,8 @@ class ClassificationTrainer(Trainer):
             self.model, ckpt = load_weight(model, device="cpu")
             for p in self.model.parameters():
                 p.requires_grad = True
-        elif model.endswith(".py"):
-            self.model = self.get_model(config=model)
+        elif model.endswith("-cls"):
+            self.model = self.get_model(model_name=model)
         elif model in torchvision.models.__dict__:
             self.model = torchvision.models.__dict__[model](weights="IMAGENET1K_V1" if self.args.pretrained else None)
         else:

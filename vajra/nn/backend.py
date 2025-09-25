@@ -34,7 +34,7 @@ class Backend(nn.Module):
         fp16 &= pt or jit or onnx or xml or engine or nn_module or triton
         nhwc = coreml or saved_model or pb or tflite or edgetpu
         stride = 32
-        model, metadata = None, None
+        model, metadata, task = None, None, None
 
         cuda = torch.cuda.is_available() and device.type != "cpu"
         if cuda and not any([nn_module, pt, jit, engine, onnx]):
@@ -46,7 +46,8 @@ class Backend(nn.Module):
 
         if nn_module:
             model = weights.to(device)
-            model = model.fuse(verbose=verbose) if fuse else model
+            if fuse:
+                model = model.fuse(verbose=verbose) if fuse else model
             if hasattr(model, "kpt_shape"):
                 kpt_shape = model.kpt_shape
             stride = max(int(model.stride.max()), 32)
@@ -91,6 +92,23 @@ class Backend(nn.Module):
             session = onnxruntime.InferenceSession(w, providers=providers)
             output_names = [x.name for x in session.get_outputs()]
             metadata = session.get_modelmeta().custom_metadata_map
+            dynamic = isinstance(session.get_outputs()[0].shape[0], str)
+            fp16 = "float16" in session.get_inputs()[0].type
+            if not dynamic:
+                io = session.io_binding()
+                bindings = []
+                for output in session.get_outputs():
+                    out_fp16 = "float16" in output.type
+                    y_tensor = torch.empty(output.shape, dtype=torch.float16 if out_fp16 else torch.float32).to(device)
+                    io.bind_output(
+                        name=output.name,
+                        device_type=device.type,
+                        device_id=device.index if cuda else 0,
+                        element_type=np.float16 if out_fp16 else np.float32,
+                        shape=tuple(y_tensor.shape),
+                        buffer_ptr=y_tensor.data_ptr(),
+                    )
+                    bindings.append(y_tensor)
 
         elif xml:
             LOGGER.info(f"Loading {w} for OpenVINO inference...")
@@ -122,19 +140,31 @@ class Backend(nn.Module):
                 import tensorrt as trt  # noqa https://developer.nvidia.com/nvidia-tensorrt-download
             except ImportError:
                 if LINUX:
-                    check_requirements("nvidia-tensorrt", cmds="-U --index-url https://pypi.ngc.nvidia.com")
+                    check_requirements("tensorrt>7.0.0,!=10.1.0")
                 import tensorrt as trt  # noqa
-            check_version(trt.__version__, "7.0.0", strict=True)
+            check_version(trt.__version__, ">=7.0.0", strict=True)
+            check_version(trt.__version__, "!=10.1.0")
             if device.type == "cpu":
                 device = torch.device("cuda:0")
             Binding = namedtuple("Binding", ("name", "dtype", "shape", "data", "ptr"))
             logger = trt.Logger(trt.Logger.INFO)
             
             with open(w, "rb") as f, trt.Runtime(logger) as runtime:
-                meta_len = int.from_bytes(f.read(4), byteorder="little")  # read metadata length
-                metadata = json.loads(f.read(meta_len).decode("utf-8"))  # read metadata
+                try:
+                    meta_len = int.from_bytes(f.read(4), byteorder="little")  # read metadata length
+                    metadata = json.loads(f.read(meta_len).decode("utf-8"))  # read metadata
+                except UnicodeDecodeError:
+                    f.seek(0)
+                dla = metadata.get("dla", None)
+                if dla is not None:
+                    runtime.DLA_core = int(dla)
                 model = runtime.deserialize_cuda_engine(f.read())  # read engine
-            context = model.create_execution_context()
+            try:
+                context = model.create_execution_context()
+            except Exception as e:
+                LOGGER.error(f"ERROR: TensorRT model exported with a different version than {trt.__version__}\n")
+                raise e
+
             bindings = OrderedDict()
             output_names = []
             fp16 = False  # default updated below
@@ -152,8 +182,8 @@ class Backend(nn.Module):
                         if -1 in tuple(model.get_tensor_shape(name)):
                             dynamic = True
                             context.set_input_shape(name, tuple(model.get_tensor_profile_shape(name, 0)[1]))
-                            if dtype == np.float16:
-                                fp16 = True
+                        if dtype == np.float16:
+                            fp16 = True
 
                     else:
                         output_names.append(name)
@@ -328,8 +358,22 @@ class Backend(nn.Module):
             y = self.net.forward()
 
         elif self.onnx:
-            img = img.cpu().numpy()
-            y = self.session.run(self.output_names, {self.session.get_inputs()[0].name: img})
+            if self.dynamic:
+                img = img.cpu().numpy()
+                y = self.session.run(self.output_names, {self.session.get_inputs()[0].name: img})
+            else:
+                if not self.cuda:
+                    img = img.cpu()
+                self.io.bind_input(
+                    name="images",
+                    device_type = img.device.type,
+                    device_id = img.device.index if img.device.type == "cuda" else 0,
+                    element_type = np.float16 if self.fp16 else np.float32,
+                    shape = tuple(img.shape),
+                    buffer_ptr = img.data_ptr(),
+                )
+                self.session.run_with_iobinding(self.io)
+                y = self.bindings
 
         elif self.xml:
             img = img.cpu().numpy()
@@ -354,14 +398,20 @@ class Backend(nn.Module):
 
         elif self.engine:
             if self.dynamic and img.shape != self.bindings["images"].shape:
-                i = self.model.get_binding_index("images")
-                self.context.set_binding_shape(i, img.shape)
-                self.bindings["images"] = self.bindings["images"]._replace(shape=img.shape)
-                for name in self.output_names:
-                    i = self.model.get_binding_index(name)
-                    self.bindings[name].data.resize_(tuple(self.context.get_binding_shape(i)))
-            s = self.bindings["images"].shape
+                if self.is_trt10:
+                    self.context.set_input_shape("images", img.shape)
+                    self.bindings["images"] = self.bindings["images"]._replace(shape=img.shape)
+                    for name in self.output_names:
+                        self.bindings[name].data.resize_(tuple(self.context.get_tensor_shape(name)))
+                else:
+                    i = self.model.get_binding_index("images")
+                    self.context.set_binding_shape(i, img.shape)
+                    self.bindings["images"] = self.bindings["images"]._replace(shape=img.shape)
+                    for name in self.output_names:
+                        i = self.model.get_binding_index(name)
+                        self.bindings[name].data.resize_(tuple(self.context.get_binding_shape(i)))
 
+            s = self.bindings["images"].shape
             assert img.shape == s, f"Input size {img.shape} {'>' if self.dynamic else 'not equal to'} max model size {s}"
             self.binding_addrs["images"] = int(img.data_ptr())
             self.context.execute_v2(list(self.binding_addrs.values()))

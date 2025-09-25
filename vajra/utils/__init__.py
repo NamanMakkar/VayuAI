@@ -49,6 +49,7 @@ LOCAL_RANK = int(os.getenv("LOCAL_RANK", -1))
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]
 HYPERPARAMS_CFG_PATH = ROOT / "configs/hyperparams/default_hyp.yaml"
+HYPERPARAMS_DETR_ARGS_PATH = ROOT / "configs/hyperparams/detr_hyp.yaml"
 ASSETS = ROOT / "assets"
 NUM_THREADS = min(8, max(1, os.cpu_count() - 1))
 MACOS, WINDOWS, LINUX = (platform.system() == x for x in ["Darwin", "Windows", "Linux"]) # platform booleans
@@ -444,6 +445,7 @@ def yaml_load(file='default_hyp.yaml', append_filename=False):
         return data
 
 HYPERPARAMS_CFG_DICT = yaml_load(HYPERPARAMS_CFG_PATH)
+HYPERPARAMS_DETR_CFG_DICT = yaml_load(HYPERPARAMS_DETR_ARGS_PATH)
 
 class TQDM(tqdm_original):
     def __init__(self, *args, **kwargs) -> None:
@@ -474,7 +476,9 @@ for k, v in HYPERPARAMS_CFG_DICT.items():
         HYPERPARAMS_CFG_DICT[k] = None
 
 HYPERPARAMS_CFG_KEYS = HYPERPARAMS_CFG_DICT.keys()
+HYPERPARAMS_DETR_CFG_KEYS = HYPERPARAMS_DETR_CFG_DICT.keys()
 HYPERPARAMS_CFG = IterableSimpleNamespace(**HYPERPARAMS_CFG_DICT)
+HYPERPARAMS_DETR_CFG = IterableSimpleNamespace(**HYPERPARAMS_DETR_CFG_DICT)
 
 class TryExcept(contextlib.ContextDecorator):
     def __init__(self, msg='', verbose=True):
@@ -537,6 +541,18 @@ def is_dir_writeable(dir_path: Union[str, Path]) -> bool:
 
     """
     return os.access(str(dir_path), os.W_OK)
+
+def is_dist_available_and_initialized():
+    if not torch.distributed.is_available():
+        return False
+    if not torch.distributed.is_initialized():
+        return False
+    return True
+
+def get_world_size():
+    if not is_dist_available_and_initialized():
+        return 1
+    return torch.distributed.get_world_size()
 
 def notebook_init(verbose=True):
     # Check system software and hardware
@@ -770,26 +786,49 @@ def string_to_val(string):
         return False
     
     else:
-        with contextlib.suppress(Exception):
-            return eval(string_lower)
-        return v
+        try:
+            st = eval(string)
+            return st
+        except Exception:
+            return string
 
 def merge_equals_args(args: List[str]) -> List[str]:
     new_args = []
-    for i, arg in enumerate(args):
+    current = ""
+    i = 0
+    depth = 0
+    while i < len(args):
+        arg = args[i]
         if arg == "=" and 0 < i < len(args) - 1:
             new_args[-1] += f"={args[i+1]}"
-            del args[i+1]
+            i += 2
+            continue
         elif arg.endswith("=") and i < len(args) - 1 and "=" not in args[i+1]:
             new_args.append(f"{arg}{args[i+1]}")
-            del args[i+1]
+            i += 2
+            continue
         elif arg.startswith("=") and i > 0:
             new_args[-1] += arg
+            i += 1
+            continue
+
+        depth += arg.count("[") - arg.count("]")
+        current += arg
+
+        if depth == 0:
+            new_args.append(current)
+            current = ""
+
+        i += 1
+    
+    if current:
+        new_args.append(current)
+
     return new_args
 
 def parse_key_value_pair(pair):
-    k, v = pair.split("=", 1)  # split on first '=' sign
-    k, v = k.strip(), v.strip()  # remove spaces
+    k, v = pair.split("=", 1)
+    k, v = k.strip(), v.strip()
     assert v, f"missing '{k}' value"
     return k, string_to_val(v)
 

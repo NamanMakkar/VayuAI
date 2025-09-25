@@ -23,7 +23,6 @@ np.set_printoptions(linewidth=320, formatter={'float_kind': '{:11.5g}'.format}) 
 cv2.setNumThreads(0)  # prevent OpenCV from multithreading (incompatible with PyTorch DataLoader)
 os.environ['NUMEXPR_MAX_THREADS'] = str(min(os.cpu_count(), 8))  # NumExpr max threads
 
-
 def clip_boxes(boxes, shape):
     """
     It takes a list of bounding boxes and a shape (height, width) and clips the bounding boxes to the
@@ -41,7 +40,6 @@ def clip_boxes(boxes, shape):
     else:  # np.array (faster grouped)
         boxes[..., [0, 2]] = boxes[..., [0, 2]].clip(0, shape[1])  # x1, x2
         boxes[..., [1, 3]] = boxes[..., [1, 3]].clip(0, shape[0])  # y1, y2
-
 
 def clip_coords(coords, shape):
     """
@@ -87,7 +85,6 @@ def xyxy_to_xywh(x):
     y[..., 3] = x[..., 3] - x[..., 1]  # height
     return y
 
-
 def xywh2xyxy(x):
     """
     Convert bounding box coordinates from (x, y, width, height) format to (x1, y1, x2, y2) format where (x1, y1) is the
@@ -104,7 +101,6 @@ def xywh2xyxy(x):
     y[..., 2] = x[..., 0] + x[..., 2] / 2  # bottom right x
     y[..., 3] = x[..., 1] + x[..., 3] / 2  # bottom right y
     return y
-
 
 def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
     """
@@ -126,7 +122,6 @@ def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
     y[..., 2] = w * (x[..., 0] + x[..., 2] / 2) + padw  # bottom right x
     y[..., 3] = h * (x[..., 1] + x[..., 3] / 2) + padh  # bottom right y
     return y
-
 
 def xyxy2xywhn(x, w=640, h=640, clip=False, eps=0.0):
     """
@@ -151,7 +146,6 @@ def xyxy2xywhn(x, w=640, h=640, clip=False, eps=0.0):
     y[..., 3] = (x[..., 3] - x[..., 1]) / h  # height
     return y
 
-
 def xyn2xy(x, w=640, h=640, padw=0, padh=0):
     """
     Convert normalized coordinates to pixel coordinates of shape (n,2)
@@ -170,7 +164,6 @@ def xyn2xy(x, w=640, h=640, padw=0, padh=0):
     y[..., 1] = h * x[..., 1] + padh  # top left y
     return y
 
-
 def xywh2ltwh(x):
     """
     Convert the bounding box format from [x, y, w, h] to [x1, y1, w, h], where x1, y1 are the top-left coordinates.
@@ -184,7 +177,6 @@ def xywh2ltwh(x):
     y[:, 0] = x[:, 0] - x[:, 2] / 2  # top left x
     y[:, 1] = x[:, 1] - x[:, 3] / 2  # top left y
     return y
-
 
 def xyxy2ltwh(x):
     """
@@ -200,7 +192,6 @@ def xyxy2ltwh(x):
     y[:, 3] = x[:, 3] - x[:, 1]  # height
     return y
 
-
 def ltwh2xywh(x):
     """
     Convert nx4 boxes from [x1, y1, w, h] to [x, y, w, h] where xy1=top-left, xy=center
@@ -212,7 +203,6 @@ def ltwh2xywh(x):
     y[:, 0] = x[:, 0] + x[:, 2] / 2  # center x
     y[:, 1] = x[:, 1] + x[:, 3] / 2  # center y
     return y
-
 
 def ltwh2xyxy(x):
     """
@@ -332,7 +322,7 @@ def nms_rotated(boxes, scores, threshold=0.45):
     # Checks
     assert 0 <= conf_thres <= 1, f"Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0"
     assert 0 <= iou_thres <= 1, f"Invalid IoU {iou_thres}, valid values are between 0.0 and 1.0"
-    if isinstance(prediction, (list, tuple)):  # YOLOv8 model in validation model, output = (inference_out, loss_out)
+    if isinstance(prediction, (list, tuple)):  # VajraV1 model in validation model, output = (inference_out, loss_out)
         prediction = prediction[0]  # select only inference output
     if classes is not None:
         classes = torch.tensor(classes, device=prediction.device)
@@ -478,7 +468,7 @@ def nms_rotated(boxes, scores, threshold=0.45):
     # Checks
     assert 0 <= conf_thres <= 1, f'Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0'
     assert 0 <= iou_thres <= 1, f'Invalid IoU {iou_thres}, valid values are between 0.0 and 1.0'
-    if isinstance(prediction, (list, tuple)):  # YOLOv8 model in validation model, output = (inference_out, loss_out)
+    if isinstance(prediction, (list, tuple)):  # VajraV1 model in validation model, output = (inference_out, loss_out)
         prediction = prediction[0]  # select only inference output
 
     device = prediction.device
@@ -619,7 +609,7 @@ def non_max_suppression(
     # Checks
     assert 0 <= conf_thres <= 1, f"Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0"
     assert 0 <= iou_thres <= 1, f"Invalid IoU {iou_thres}, valid values are between 0.0 and 1.0"
-    if isinstance(prediction, (list, tuple)):  # YOLOv8 model in validation model, output = (inference_out, loss_out)
+    if isinstance(prediction, (list, tuple)):  # VajraV1 model in validation model, output = (inference_out, loss_out)
         prediction = prediction[0]  # select only inference output
     if classes is not None:
         classes = torch.tensor(classes, device=prediction.device)

@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from vajra.utils import LOGGER
 from vajra.nn.modules import Conv, ConvBNAct, ConvNeXtV1Block, LayerNorm, trunc_normal_, Linear
-from vajra.nn.head import Detection, PoseDetection, Segementation, OBBDetection, Panoptic
+from vajra.nn.head import Detection, PoseDetection, Segmentation, OBBDetection, Panoptic
 
 class ConvNeXtV1(nn.Module):
     def __init__(self, 

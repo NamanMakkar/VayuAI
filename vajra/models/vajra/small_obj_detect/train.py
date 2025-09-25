@@ -285,10 +285,10 @@ class SmallObjDetectionTrainer(Trainer):
                 self.ema.update_attr(self.model, include=["yaml", "num_classes", "args", "names", "stride", "class_weights"])
                 self.ema_det.update_attr(self.model_det, include=["yaml", "num_classes", "args", "names", "stride", "class_weights"])
 
-                if (self.args.val and (((epoch + 1) % self.args.val_period == 0) or (self.epochs - epoch) <= 10)) \
+                if (self.args.val and ((epoch + 1) >= self.args.val_start) and (((epoch + 1) % self.args.val_period == 0) or (self.epochs - epoch) <= 10)) \
                     or final_epoch or self.stopper.possible_stop or self.stop:
 
-                    self.model_det.load(self.model.model)
+                    self.model_det.load(self.model.model) # Transfers weights from Pose Model to Detection Model
                     self.metrics, self.fitness = self.validate()
 
                 self.save_metrics(metrics={**self.label_loss_items(self.tloss), **self.metrics, **self.lr})
@@ -323,7 +323,7 @@ class SmallObjDetectionTrainer(Trainer):
                 broadcast_list = [self.stop if RANK == 0 else None]
                 dist.broadcast_object_list(broadcast_list, 0)
                 self.stop = broadcast_list[0]
-            if self.stop:
+            if self.stop or (epoch == self.args.stop_epoch):
                 break
 
             epoch += 1

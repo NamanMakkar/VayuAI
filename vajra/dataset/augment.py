@@ -9,7 +9,7 @@ import cv2
 import numpy as np
 import torch
 import torchvision.transforms as T
-
+from typing import Optional, List, Any
 from vajra.utils import LOGGER, colorstr
 from vajra.checks import check_version
 from vajra.instances import Instances2d
@@ -343,6 +343,73 @@ class MixUp(BaseMixTransform):
         labels["cls"] = np.concatenate([labels["cls"], labels2["cls"]], 0)
         return labels
 
+class CutMix(BaseMixTransform):
+    """Class for applying CutMix augmentation to the dataset."""
+
+    def __init__(self, dataset, pre_transform=None, p=0.0, alpha=1.0) -> None:
+        """
+        Initializes CutMix object with dataset, pre_transform, probability, and alpha parameter for beta distribution.
+        
+        Args:
+            dataset: The dataset to apply CutMix on.
+            pre_transform: Optional pre-transformation to apply before CutMix.
+            p (float): Probability of applying CutMix augmentation.
+            alpha (float): Hyperparameter for the Beta distribution to control the mixing ratio.
+        """
+        super().__init__(dataset=dataset, pre_transform=pre_transform, p=p)
+        self.alpha = alpha
+
+    def get_indexes(self):
+        """Get a random index from the dataset."""
+        return random.randint(0, len(self.dataset) - 1)
+
+    def _mix_transform(self, labels):
+        """
+        Applies CutMix augmentation by cutting a region from one image and pasting it onto another.
+        
+        Args:
+            labels (dict): Dictionary containing the image and labels.
+        
+        Returns:
+            labels (dict): Updated dictionary with mixed image and labels.
+        """
+        labels2 = labels["mix_labels"][0]
+        img1 = labels["img"]
+        img2 = labels2["img"]
+        h, w = img1.shape[:2]
+
+        # Sample the mixing ratio from a Beta distribution
+        lam = np.random.beta(self.alpha, self.alpha)
+
+        # Generate random bounding box coordinates for the cut region
+        cut_rat = np.sqrt(1.0 - lam)  # Ratio of the cut area
+        cut_w = int(w * cut_rat)
+        cut_h = int(h * cut_rat)
+
+        # Random center point for the cut region
+        cx = np.random.randint(0, w)
+        cy = np.random.randint(0, h)
+
+        # Define the bounding box coordinates, ensuring they stay within image bounds
+        bbx1 = np.clip(cx - cut_w // 2, 0, w)
+        bby1 = np.clip(cy - cut_h // 2, 0, h)
+        bbx2 = np.clip(cx + cut_w // 2, 0, w)
+        bby2 = np.clip(cy + cut_h // 2, 0, h)
+
+        # Apply CutMix: Replace the region in img1 with the corresponding region from img2
+        img1[bby1:bby2, bbx1:bbx2] = img2[bby1:bby2, bbx1:bbx2]
+
+        # Mix the labels proportionally based on the area
+        labels["img"] = img1
+        labels["cls"] = np.concatenate([labels["cls"], labels2["cls"]], 0)
+        labels["mix_ratio"] = lam  # Optional: Store the mixing ratio for potential use
+
+        # If instances exist (e.g., bounding boxes), concatenate them
+        if "instances" in labels and "instances" in labels2:
+            labels["instances"] = Instances2d.concatenate([labels["instances"], labels2["instances"]], axis=0)
+
+        return labels
+
 class RandomPerspective:
     """
     Implements random perspective and affine transformations on images and corresponding bounding boxes, segments, and
@@ -609,15 +676,15 @@ class RandomHSV:
         """
         img = labels["img"]
         if self.hgain or self.sgain or self.vgain:
-            r = np.random.uniform(-1, 1, 3) * [self.hgain, self.sgain, self.vgain] + 1  # random gains
-            hue, sat, val = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
             dtype = img.dtype  # uint8
-
+            r = np.random.uniform(-1, 1, 3) * [self.hgain, self.sgain, self.vgain] # random gains
             x = np.arange(0, 256, dtype=r.dtype)
-            lut_hue = ((x * r[0]) % 180).astype(dtype)
-            lut_sat = np.clip(x * r[1], 0, 255).astype(dtype)
-            lut_val = np.clip(x * r[2], 0, 255).astype(dtype)
+            lut_hue = ((x * r[0] * 180) % 180).astype(dtype)
+            lut_sat = np.clip(x * (r[1] + 1), 0, 255).astype(dtype)
+            lut_val = np.clip(x * (r[2] + 1), 0, 255).astype(dtype)
+            lut_sat[0] = 0
 
+            hue, sat, val = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
             im_hsv = cv2.merge((cv2.LUT(hue, lut_hue), cv2.LUT(sat, lut_sat), cv2.LUT(val, lut_val)))
             cv2.cvtColor(im_hsv, cv2.COLOR_HSV2BGR, dst=img)  # no return needed
         return labels
@@ -813,71 +880,6 @@ class CopyPaste(BaseMixTransform):
         labels1["cls"] = cls
         labels1["instances"] = instances
         return labels1
-
-'''class CopyPaste:
-    """
-    Implements the Copy-Paste augmentation as described in the paper https://arxiv.org/abs/2012.07177. This class is
-    responsible for applying the Copy-Paste augmentation on images and their corresponding instances.
-    """
-
-    def __init__(self, p=0.5) -> None:
-        """
-        Initializes the CopyPaste class with a given probability.
-
-        Args:
-            p (float, optional): The probability of applying the Copy-Paste augmentation. Must be between 0 and 1.
-                                 Default is 0.5.
-        """
-        self.p = p
-
-    def __call__(self, labels):
-        """
-        Applies the Copy-Paste augmentation to the given image and instances.
-
-        Args:
-            labels (dict): A dictionary containing:
-                           - 'img': The image to augment.
-                           - 'cls': Class labels associated with the instances.
-                           - 'instances': Object containing bounding boxes, and optionally, keypoints and segments.
-
-        Returns:
-            (dict): Dict with augmented image and updated instances under the 'img', 'cls', and 'instances' keys.
-
-        Notes:
-            1. Instances are expected to have 'segments' as one of their attributes for this augmentation to work.
-            2. This method modifies the input dictionary 'labels' in place.
-        """
-        im = labels["img"]
-        cls = labels["cls"]
-        h, w = im.shape[:2]
-        instances = labels.pop("instances")
-        instances.convert_bbox(format="xyxy")
-        instances.denormalize(w, h)
-        if self.p and len(instances.segments):
-            n = len(instances)
-            _, w, _ = im.shape  # height, width, channels
-            im_new = np.zeros(im.shape, np.uint8)
-
-            # Calculate ioa first then select indexes randomly
-            ins_flip = deepcopy(instances)
-            ins_flip.fliplr(w)
-
-            ioa = bbox_ioa(ins_flip.bboxes, instances.bboxes)  # intersection over area, (N, M)
-            indexes = np.nonzero((ioa < 0.30).all(1))[0]  # (N, )
-            n = len(indexes)
-            for j in random.sample(list(indexes), k=round(self.p * n)):
-                cls = np.concatenate((cls, cls[[j]]), axis=0)
-                instances = Instances2d.concatenate((instances, ins_flip[[j]]), axis=0)
-                cv2.drawContours(im_new, instances.segments[[j]].astype(np.int32), -1, (1, 1, 1), cv2.FILLED)
-
-            result = cv2.flip(im, 1)  # augment segments (flip left-right)
-            i = cv2.flip(im_new, 1).astype(bool)
-            im[i] = result[i]
-
-        labels["img"] = im
-        labels["cls"] = cls
-        labels["instances"] = instances
-        return labels'''
 
 class Albumentations:
     """
@@ -1084,9 +1086,8 @@ class Format:
 
         return masks, instances, cls
 
-
 def vajra_transforms(dataset, imgsz, hyp, stretch=False):
-    """Convert images to a size suitable for YOLOv8 training."""
+    """Convert images to a size suitable for VajraV1 training."""
     mosaic = Mosaic(dataset, imgsz=imgsz, p=hyp.mosaic)
     affine = RandomPerspective(
         degrees=hyp.degrees,
@@ -1128,6 +1129,25 @@ def vajra_transforms(dataset, imgsz, hyp, stretch=False):
             RandomFlip(direction="horizontal", p=hyp.fliplr, flip_idx=flip_idx),
         ]
     )
+
+"""def dfine_transforms(dataset, hyp):
+    flip_idx = dataset.data.get("flip_idx", [])
+    if dataset.use_keypoints:
+        kpt_shape = dataset.data.get("kpt_shape", None)
+        if len(flip_idx) == 0 and hyp.fliplr > 0.0:
+            hyp.fliplr = 0.0
+            LOGGER.warning("WARNING! No 'flip_idx' array defined in data.yaml, setting augmentation 'fliplr=0.0'")
+        elif flip_idx and (len(flip_idx) != kpt_shape[0]):
+            raise ValueError(f"data.yaml flip_idx={flip_idx} length must be equal to kpt_shape[0]={kpt_shape[0]}")
+        
+    return T.Compose(
+        T.RandomPhotometricDistort(p=hyp.get("random_photometric_distort_prob", 0.5)),
+        T.RandomZoomOut(fill=hyp.get("random_zoom_out_fill", 0.6)),
+        T.RandomHorizontalFlip,
+    ) if hyp.fliplr != 0.0 else T.Compose(
+        T.RandomPhotometricDistort(p=hyp.get("random_photometric_distort_prob", 0.5)),
+        T.RandomZoomOut(fill=hyp.get("random_zoom_out_fill", 0.6)),
+    )"""
 
 def classify_transforms(
     size=224,
@@ -1270,7 +1290,7 @@ def classify_augmentations(
     return T.Compose(primary_tfl + secondary_tfl + final_tfl)
 
 class CenterCrop:
-    """YOLOv8 CenterCrop class for image preprocessing, designed to be part of a transformation pipeline, e.g.,
+    """VajraV1 CenterCrop class for image preprocessing, designed to be part of a transformation pipeline, e.g.,
     T.Compose([CenterCrop(size), ToTensor()]).
     """
 

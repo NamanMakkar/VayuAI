@@ -18,8 +18,9 @@ from vajra.configs import get_config
 from vajra.dataset.dataset import VajraDetDataset
 from vajra.dataset.build import build_dataloader
 from vajra.dataset.utils import check_det_dataset, check_cls_dataset, check_class_names, default_class_names
-from vajra.nn.modules import VajraMerudandaBhag1, VajraMerudandaBhag4, VajraMerudandaBhag7, AttentionBottleneckV2
-from vajra.nn.head import Detection
+from vajra.nn.modules import VajraMerudandaBhag1, VajraMerudandaBhag4, VajraV1MerudandaX, VajraV1MerudandaBhag17, SPPFRepViT, VajraV1AttentionBhag8, VajraV1MerudandaBhag16, VajraV1AttentionBhag12, VajraV2AttentionBhag2, VajraV2MerudandaBhag13, VajraV1MerudandaBhag10, VajraV1MerudandaBhag15, VajraV1AttentionBhag11, VajraV2MerudandaBhag14, VajraV2MerudandaBhag15, VajraV1MerudandaBhag8, VajraV1AttentionBhag10, VajraV1AttentionBhag9, VajraV1AttentionBhag1, VajraV1AttentionBhag2, VajraV1AttentionBhag5, VajraV1MakkarNormMerudandaBhag1, VajraV1MakkarNormMerudandaBhag2, VajraV1MerudandaBhag3, VajraV1AttentionBhag4, VajraV1AttentionBhag6, VajraV1MerudandaBhag7, VajraV1AttentionBhag7, VajraV1MerudandaBhag6, VajraV1Attention, VajraV2InnerBlock, VajraMerudandaBhag7, AttentionBottleneckV2, RepNCSPELAN4, VajraV2MerudandaBhag10
+from vajra.nn.window_attention import VajraV1SwinTransformerBlockV1, VajraV1SwinTransformerBlockV2, VajraV1SwinTransformerBlockV4
+from vajra.nn.head import Detection, Classification
 from vajra.nn.vajra import DetectionModel, SegmentationModel, VajraWorld
 from vajra.utils import (
     ARM64,
@@ -102,13 +103,13 @@ class Exporter:
         self.run_callbacks("on_export_start")
         t = time.time()
         format = self.args.format.lower()
-
+        LOGGER.info(f"pt_path for model weights: {getattr(model, 'pt_path', None)}")
         if format in ("tensorrt", "trt"):
             format = "engine"
 
         if format in ("mlmodel", "mlpackage", "mlprogram", "apple", "ios", "coreml"):
             format = "coreml"
-
+        fmts_dict = export_formats()
         formats = tuple(export_formats()["Argument"][1:])
         LOGGER.info(f"Formats: {formats}\n")
         flags = [x == format for x in formats]
@@ -117,11 +118,17 @@ class Exporter:
         jit, onnx, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle, ncnn = flags
         is_tf_format = any((saved_model, pb, tflite, edgetpu, tfjs))
 
+        dla = None
         if format == "engine" and self.args.device is None:
-            LOGGER.warning("WARNING! TensroRT requires GPU export")
+            LOGGER.warning("WARNING! TensorRT requires GPU export, automatically assigning device=0")
             self.args.device = "0"
-        self.device = select_device("cpu" if self.args.device is None else self.args.device)
+        if format == "engine" and "dla" in str(self.args.device):
+            dla = self.args.device.split(":")[-1]
+            self.args.device = "0"
+            assert dla in {"0", "1"}, f"Expected self.args.device='dla:0' or 'dla:1' but got {self.args.device}."
 
+        self.device = select_device("cpu" if self.args.device is None else self.args.device)
+        format_keys = fmts_dict["Argument"][flags.index(True) + 1]
         if not hasattr(model, "names"):
             model.names = default_class_names()
         
@@ -164,11 +171,13 @@ class Exporter:
         model = model.fuse()
 
         for module in model.modules():
+            if isinstance(module, (Classification)):
+                module.export = True
             if isinstance(module, (Detection)):
                 module.dynamic = self.args.dynamic
                 module.export = True
                 module.format = self.args.format
-            elif isinstance(module, (VajraMerudandaBhag4, AttentionBottleneckV2, VajraMerudandaBhag7)) and not is_tf_format:
+            elif isinstance(module, (VajraV1SwinTransformerBlockV1, VajraV1MerudandaBhag17, VajraV1MerudandaBhag16, VajraV1MerudandaBhag15, SPPFRepViT, VajraV2AttentionBhag2, VajraV1AttentionBhag10, VajraV2MerudandaBhag13, VajraV1MerudandaBhag10, VajraV1AttentionBhag11, VajraV1AttentionBhag12, VajraV1MerudandaBhag8, VajraV1MerudandaBhag7, VajraV1AttentionBhag8, VajraV1AttentionBhag9, VajraV2MerudandaBhag10, VajraV2MerudandaBhag14, VajraV2MerudandaBhag15, VajraV1MakkarNormMerudandaBhag2, VajraV1SwinTransformerBlockV4, VajraMerudandaBhag4, VajraV1MerudandaBhag3, VajraV1MerudandaBhag6, VajraV1AttentionBhag1, VajraV1AttentionBhag2, VajraV1AttentionBhag4, VajraV1AttentionBhag5, VajraV1AttentionBhag6, VajraV1AttentionBhag7, VajraV1Attention, AttentionBottleneckV2, VajraMerudandaBhag7, RepNCSPELAN4, VajraV1MerudandaX)) and not is_tf_format:
                 module.forward = module.forward_split
 
         y = None
@@ -176,7 +185,7 @@ class Exporter:
             y = model(img)
 
         if self.args.half and onnx and self.device.type != "cpu":
-            img, model = img.half, model.half
+            img, model = img.half(), model.half()
 
         warnings.filterwarnings("ignore", category=torch.jit.TracerWarning)
         warnings.filterwarnings("ignore", category=UserWarning)
@@ -210,6 +219,7 @@ class Exporter:
             "batch": self.args.batch,
             "img_size": self.img_size,
             "names": model.names,
+            "args": {k: v for k, v in self.args if k in format_keys}
         }
 
         if model.task == "pose":
@@ -322,7 +332,7 @@ class Exporter:
     def export_onnx(self, prefix=colorstr("ONNX:")):
         requirements = ["onnx>=1.12.0"]
         if self.args.simplify:
-            requirements += ["onnxsim==0.1.34", "onnxruntime-gpu" if torch.cuda.is_available() else "onnxruntime"]
+            requirements += ["onnxslim", "onnxruntime-gpu" if torch.cuda.is_available() else "onnxruntime"]
         check_requirements(requirements)
         import onnx
 
@@ -333,15 +343,27 @@ class Exporter:
         output_names = ["output0", "output1"] if isinstance(self.model, SegmentationModel) else ["output0"]
         dynamic = self.args.dynamic
         if dynamic:
+            self.model.cpu()
             dynamic = {"images": {0: "batch", 2: "height", 3: "width"}}
             if isinstance(self.model, SegmentationModel):
                 dynamic["output0"] = {0: "batch", 2: "anchors"}
                 dynamic["output1"] = {0: "batch", 2: "mask_height", 3: "mask_width"}
             elif isinstance(self.model, DetectionModel):
                 dynamic["output0"] = {0: "batch", 2: "anchors"}
+            if self.args.nms:
+                dynamic["output0"].pop(2)
+
+        if self.args.nms and self.model.task == "obb":
+            self.args.opset = opset_version
+
+            try:
+                torch.onnx.register_custom_op_symbolic("aten::lift_fresh", lambda g, x: x, opset_version)
+            except RuntimeError:
+                pass
+            check_requirements("onnxslim>=0.1.46")
         
         torch.onnx.export(
-            self.model.cpu() if dynamic else self.model,
+            self.model,
             self.img.cpu() if dynamic else self.img,
             f,
             verbose=False,
@@ -630,7 +652,6 @@ class Exporter:
         except ImportError:
             if LINUX:
                 check_requirements("tensorrt>7.0.0,<=10.1.0")
-                #check_requirements("nvidia-tensorrt", cmds="-U --index-url https://pypi.ngc.nvidia.com")
             import tensorrt as trt  # noqa
 
         check_version(trt.__version__, ">=7.0.0", strict=True)  # require tensorrt>=7.0.0
@@ -648,16 +669,18 @@ class Exporter:
 
         builder = trt.Builder(logger)
         config = builder.create_builder_config()
-        workspace = int(self.args.workspace * (1 << 30))
-        if is_trt10:
+        workspace = int(self.args.workspace * (1 << 30)) if self.args.workspace is not None else 0
+        if is_trt10 and workspace > 0:
             config.set_memory_pool_limit(trt.MemoryPoolType.WORKSPACE, workspace)
-        else:
+        elif workspace > 0:
             config.max_workspace_size = workspace
 
         flag = 1 << int(trt.NetworkDefinitionCreationFlag.EXPLICIT_BATCH)
         network = builder.create_network(flag)
         half = builder.platform_has_fast_fp16 and self.args.half
         int8 = builder.platform_has_fast_int8 and self.args.int8
+
+        #if dla is not None:
         parser = trt.OnnxParser(network, logger)
         if not parser.parse_from_file(f_onnx):
             raise RuntimeError(f"failed to load ONNX file: {f_onnx}")
@@ -675,7 +698,7 @@ class Exporter:
                 LOGGER.warning(f"{prefix} WARNING! 'dynamic=True' model requires max batch size, i.e. 'batch=16'")
             profile = builder.create_optimization_profile()
             min_shape = (1, shape[1], 32, 32)
-            max_shape = (*shape[:2], *(max(1, self.args.workspace) * d for d in shape[2:]))
+            max_shape = (*shape[:2], *(int(max(1, workspace) * d) for d in shape[2:]))
             for inp in inputs:
                 profile.set_shape(inp.name, min=min_shape, opt=shape, max=max_shape)
                 #profile.set_shape(inp.name, (1, *shape[1:]), (max(1, shape[0] // 2), *shape[1:]), shape)
@@ -748,7 +771,7 @@ class Exporter:
 
     @try_export
     def export_saved_model(self, prefix=colorstr("TensorFlow SavedModel:")):
-        """YOLOv8 TensorFlow SavedModel export."""
+        """VajraV1 TensorFlow SavedModel export."""
         cuda = torch.cuda.is_available()
         try:
             import tensorflow as tf  # noqa
@@ -901,7 +924,7 @@ class Exporter:
     
     @try_export
     def export_tfjs(self, prefix=colorstr("TensorFlow.js:")):
-        """YOLOv8 TensorFlow.js export."""
+        """VajraV1 TensorFlow.js export."""
         check_requirements("tensorflowjs")
         if ARM64:
             # Fix error: `np.object` was a deprecated alias for the builtin `object` when exporting to TF.js on ARM64

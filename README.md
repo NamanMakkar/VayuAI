@@ -13,29 +13,16 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 
 | Model                                                                                | Size (pixels) | mAP<sup>val<br>50-95</sup> | Speed<br><sup>RTX 4090 TensorRT10 Latency (ms)</sup> | Params (M) | FLOPs (B) |
 |-------------------------------------------------------------------------------------|---------------|----------------------------|-----------------------------------------------------|------------|-----------|
-| [VajraV1-nano-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.1/vajra-v1-nano-det.pt) | 640           | 41.2                       | 1.4                                                 | 3.36       | 8.2       |
-| [VajraV1-small-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.1/vajra-v1-small-det.pt)  | 640           | 47.7                       | 1.4                                                 | 12.38      | 27.9      |
-| VajraV1-medium-det                                                                   | 640           |                            | 1.8                                                 | 21.15      | 75.1      |
-| VajraV1-large-det                                                                    | 640           |                            | 2.4                                                 | 25.75      | 93.1      |
-| VajraV1-xlarge-det                                                                   | 640           |                            | 2.9                                                 | 57.83      | 208.3     |
-
+| [VajraV1-nano-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.2/vajra-v1-nano-det.pt) | 640           | 44.3                       | 1.0                                                 | 3.78       | 13.7       |
+| [VajraV1-small-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.2/vajra-v1-small-det.pt)  | 640           | 50.4                       | 1.1                                                 | 11.58      | 47.9      |
+| [VajraV1-medium-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.2/vajra-v1-medium-det.pt)  | 640           | 52.7                           | 1.5                                                 | 20.29      | 94.5      |
+| [VajraV1-large-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.2/vajra-v1-medium-det.pt)  | 640           | 53.7                           | 1.8                                                 | 24.63      | 115.2      |
+| [VajraV1-xlarge-det]((https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.2/vajra-v1-xlarge-det.pt)  | 640           | 56.2                           | 3.2                                                 | 72.7      | 208.3     |
 
 
 <p align="center">
-<img width="90%" src="./vajra/assets/visdrone_testdev_performance_plot.png" alt="VajraV1 performance plot test dev">
-<img width="90%" src="./vajra/assets/visdrone_val_performance_plot.png" alt="VajraV1 performance plot val">
+<img width="90%" src="./vajra/assets/vajra_v1_coco_dataset_performance.png" alt="VajraV1 Performance on COCO Dataset">
 </p>
-
-## <div align="center">Performance on VisDrone Dataset</div>
-| Model                                                                                | size<br><sup>(pixels) | mAP<sup>test-dev<br>50-95 | mAP<sup>val<br>50-95 | Speed<br><sup>RTX 4090 TensorRT10 Latency<br>(ms) | params<br><sup>(M) | FLOPs<br><sup>(B) |
-| ------------------------------------------------------------------------------------ | --------------------- | -------------------- | ------------------------------ | ----------------------------------- | ------------------ | ----------------- |
-| [VajraV1-nano-det](https://github.com/VayuAI/releases/download/v1.0.0/visdrone-best-vajra-v1-nano-det.pt) | 640                   | 25.5                | 20.8                        | 1.4                              | 3.32                | 8.0               |
-| [VajraV1-small-det](https://github.com/VayuAI/releases/download/v1.0.0/visdrone-best-vajra-v1-small-det.pt) | 640                   | 27.3               | 24.3                      | 1.4                               | 12.36               | 27.7              |
-| [VajraV1-medium-det](https://github.com/VayuAI/releases/download/v1.0.0/visdrone-best-vajra-v1-medium-det.pt) | 640                   | 29.7                | 27.7                        | 1.8                               | 21.09               | 74.8              |
-| [VajraV1-large-det](https://github.com/VayuAI/releases/download/v1.0.0/visdrone-best-vajra-v1-large-det.pt) | 640                   | 30.0                 | 28.0                        | 2.4                               | 25.70               | 92.8             |
-| [VajraV1-xlarge-det](https://github.com/VayuAI/releases/download/v1.0.0/visdrone-best-vajra-v1-xlarge-det.pt) | 640                   | 30.4                | 29.7                       | 2.9                               | 57.75              | 207.8             |
-
-Results on COCO dataset to be published soon!
 
 ## <div align="center">Documentation</div>
 

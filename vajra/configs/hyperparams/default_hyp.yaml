@@ -4,7 +4,7 @@ task: detection # (str) task, i.e. detect, segment, classify, pose
 mode: train # (str) mode, i.e. train, val, predict, export, track, benchmark
 
 # Train settings -------------------------------------------------------------------------------------------------------
-model: # (str, optional) path to model file, i.e. yolov8n.pt, yolov8n.yaml
+model: # (str, optional) path to model file, i.e. vajra-v1-nano-det.pt, vajra-v1-nano-det
 data: # (str, optional) path to data file, i.e. coco128.yaml
 epochs: 100 # (int) number of epochs to train for
 time: # (float, optional) number of hours to train for, overrides epochs if supplied
@@ -53,6 +53,7 @@ half: False # (bool) use half precision (FP16)
 dnn: False # (bool) use OpenCV DNN for ONNX inference
 plots: True # (bool) save plots and images during train/val
 val_start: 0 # (int) epoch number for starting validation
+stop_epoch: 1000 # (int) epoch number for stopping training
 
 # Predict settings -----------------------------------------------------------------------------------------------------
 source: # (str, optional) source directory for images or videos
@@ -82,7 +83,7 @@ keras: False # (bool) use Kera=s
 optimize: False # (bool) TorchScript: optimize for mobile
 int8: False # (bool) CoreML/TF INT8 quantization
 dynamic: False # (bool) ONNX/TF/TensorRT: dynamic axes
-simplify: False # (bool) ONNX: simplify model
+simplify: True # (bool) ONNX: simplify model
 opset: # (int, optional) ONNX: opset version
 workspace: 4 # (int) TensorRT: workspace size (GB)
 nms: False # (bool) CoreML: add NMS
@@ -108,6 +109,8 @@ hsv_v: 0.4 # (float) image HSV-Value augmentation (fraction)
 degrees: 0.0 # (float) image rotation (+/- deg)
 translate: 0.1 # (float) image translation (+/- fraction)
 scale: 0.5 # (float) image scale (+/- gain)
+scale_change_bool: False # (bool) Whether to change the scale value after a certain epoch
+scale_change_epoch: 300 # (int) epoch for scale change from 0.5 to 0.9
 shear: 0.0 # (float) image shear (+/- deg)
 perspective: 0.0 # (float) image perspective (+/- fraction), range 0-0.001
 flipud: 0.0 # (float) image flip up-down (probability)

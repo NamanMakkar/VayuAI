@@ -294,7 +294,6 @@ def strip_optimizer(f: Union[str, Path] = "best.pt", s: str = "") -> None:
     for p in x["model"].parameters():
         p.requires_grad = False
     x["train_args"] = {k: v for k, v in args.items() if k in HYPERPARAMS_CFG_KEYS}  # strip non-default keys
-    # x['model'].args = x['train_args']
     torch.save(x, s or f)
     mb = os.path.getsize(s or f) / 1e6  # file size
     LOGGER.info(f"Optimizer stripped from {f},{f' saved as {s},' if s else ''} {mb:.1f}MB")
@@ -446,6 +445,48 @@ def fuse_conv_and_bn(conv, bn):
     fusedconv.bias.copy_(torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
 
     return fusedconv
+
+def fuse_conv_and_dynamic_tanh(conv, dynamic_tanh):
+    """
+    Fuse a Conv2d layer with a DynamicTanh layer using a linear approximation of tanh.
+    
+    Args:
+        conv (nn.Conv2d): The convolution layer to fuse.
+        dynamic_tanh (DynamicTanh): The DynamicTanh layer to fuse.
+    
+    Returns:
+        nn.Conv2d: A new Conv2d layer with adjusted weights and biases.
+    """
+    # Create a new Conv2d layer with the same parameters as the original
+    fused_conv = nn.Conv2d(
+        in_channels=conv.in_channels,
+        out_channels=conv.out_channels,
+        kernel_size=conv.kernel_size,
+        stride=conv.stride,
+        padding=conv.padding,
+        dilation=conv.dilation,
+        groups=conv.groups,
+        bias=True  # Ensure bias is included in the fused layer
+    ).requires_grad_(False).to(conv.weight.device)
+
+    # Extract DynamicTanh parameters
+    alpha = dynamic_tanh.alpha.item()  # Scalar parameter
+    weight = dynamic_tanh.weight  # Shape: (C_out,)
+    bias = dynamic_tanh.bias  # Shape: (C_out,)
+
+    # Compute scaling factor for each output channel
+    scale = alpha * weight  # Shape: (C_out,)
+
+    # Adjust weights: scale[c_out] * conv.weight[c_out, :, :, :]
+    fused_conv.weight.copy_(conv.weight * scale.view(-1, 1, 1, 1))
+
+    # Adjust bias
+    if conv.bias is not None:
+        fused_conv.bias.copy_(scale * conv.bias + bias)
+    else:
+        fused_conv.bias.copy_(bias)
+
+    return fused_conv
 
 def get_flops(model, img_size=640):
     if not thop:
