@@ -89,11 +89,11 @@ path = model.export(format="engine", device=0, half=True)
 ✅ VajraV1-cls  
 ✅ VajraV1-pose  
 ✅ VajraV1-seg  
-✅ VajraV1-obb
+✅ VajraV1-obb  
 ✅ SAM  
 ✅ SAM2  
 ✅ FastSAM  
-✅ MobileSAM 
+✅ MobileSAM  
 ✅ EfficientNetV1  
 ✅ EfficientNetV2  
 ✅ VajraEffNetV1  

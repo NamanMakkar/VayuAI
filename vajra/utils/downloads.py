@@ -18,7 +18,7 @@ import torch
 REPO = "NamanMakkar/VayuAI"
 GITHUB_ASSETS_NAMES = (
     [f'visdrone-best-vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')]
-    + [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')]
+    + [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')] + [f'vajra-v1-{k}-seg.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')]
 )
 
 GITHUB_ASSETS_DICT = {
@@ -27,8 +27,8 @@ GITHUB_ASSETS_DICT = {
         "version": "v1.0.0"
     },
     "coco": {
-        "weights": [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small', "medium", "large", "xlarge")],
-        "version": "v1.0.2"
+        "weights": [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small', "medium", "large", "xlarge")] + [f'vajra-v1-{k}-seg.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')],
+        "version": "v1.0.3"
     }
 }
 GITHUB_ASSETS_STEMS = [Path(k).stem for k in GITHUB_ASSETS_NAMES]
