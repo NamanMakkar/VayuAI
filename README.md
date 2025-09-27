@@ -21,7 +21,7 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 
 
 <p align="center">
-<img width="100%" src="./vajra/assets/vajra_v1_detection_performance.png" alt="VajraV1 Detection Performance on COCO Dataset">
+<img width="100%" src="./vajra/assets/vajra_v1_detection_performance_coco.png" alt="VajraV1 Detection Performance on COCO Dataset">
 </p>
 
 ## <div align="center">Segmentation Performance on COCO Dataset</div>
@@ -31,7 +31,11 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 | [VajraV1-small-seg](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.3/vajra-v1-small-seg.pt) | 640           | 50.2                          | 40.5                             | 1.2                                                 | 12.23      | 61.9      |
 | [VajraV1-medium-seg](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.3/vajra-v1-medium-seg.pt) | 640           | 52.6                          | 42.3                             | 1.7                                                 | 22.6      | 149.9      |
 | [VajraV1-large-seg](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.3/vajra-v1-medium-seg.pt) | 640           | 53.6                          | 43.1                             | 2.0                                                 | 26.93      | 170.6     |
-| [VajraV1-xlarge-seg](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.3/vajra-v1-xlarge-seg.pt) | 640           | 55.7                          | 44.5                             | 3.5                                                 | 75       | 278.1     |
+| [VajraV1-xlarge-seg](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.3/vajra-v1-xlarge-seg.pt) | 640           | 55.7                          | 44.5                             | 3.4                                                 | 75       | 278.1     |
+
+<p align="center">
+<img width="100%" src="./vajra/assets/vajra_v1_segmentation_performance_coco.png" alt="VajraV1 Detection Performance on COCO Dataset">
+</p>
 
 ## <div align="center">Documentation</div>
 
