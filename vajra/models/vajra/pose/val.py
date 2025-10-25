@@ -124,7 +124,7 @@ class PoseValidator(DetectionValidator):
             if self.args.save_json:
                 self.pred_to_json(predn, batch["im_file"][si])
 
-            if self.arg.save_txt:
+            if self.args.save_txt:
                 self.save_one_txt(
                     predn,
                     pred_kpts,
@@ -168,6 +168,11 @@ class PoseValidator(DetectionValidator):
             names=self.names,
             on_plot=self.on_plot
         )
+
+    def save_one_txt(self, predn, pred_kpts, save_conf, shape, file):
+        from vajra.core.results import Results
+        Results(np.zeros((shape[0], shape[1]), dtype=np.uint8),
+                path=None, names=self.names, boxes=predn[:, :6], keypoints=pred_kpts,).save_txt(file, save_conf=save_conf)
 
     def pred_to_json(self, predn, filename):
         stem = Path(filename).stem

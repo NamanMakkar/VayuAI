@@ -5,7 +5,7 @@ import torch.nn as nn
 from typing import Dict
 from pathlib import Path
 from vajra.nn.transformer import HybridEncoder
-from vajra.models.utils import DEIMCriterion, DFINECriterion
+from vajra.models.utils import DEIMCriterion, DFINECriterion, convert_to_dfine_targets
 from vajra.nn.head import DFINETransformer
 from vajra.nn.backbones.hgnet.hgnetv2 import HGNetV2
 from vajra.utils.dfine_ops import HungarianMatcher
@@ -351,6 +351,7 @@ def build_rtdetr(task="detect", num_classes=80, size="nano", verbose=False, mode
     #model = nn.Sequential(model)
 
     losses = ["mal", "boxes", "local"] if model_name_type == "deim" else ["vfl", "boxes", "local"]
+    loss_names = ["loss_mal", "loss_bbox", "loss_giou", "loss_fgl"] if model_name_type == "deim" else ["loss_vfl", "loss_bbox", "loss_giou", "loss_fgl"]
     loss_weight_dict = {"loss_mal": 1., "loss_bbox": 5., "loss_giou": 2., "loss_fgl": 0.15, "loss_ddf": 1.5,} if model_name_type == "deim" else {"loss_vfl": 1., "loss_bbox": 5., "loss_giou": 2., "loss_fgl": 0.15, "loss_ddf": 1.5}
     matcher_weight_dict = {"class": 2., "bbox": 5., "giou": 2.}
     matcher_config = {
@@ -360,6 +361,7 @@ def build_rtdetr(task="detect", num_classes=80, size="nano", verbose=False, mode
     }
     loss_config = {
         "losses": losses,
+        "loss_names": loss_names,
         "use_focal_loss": True,
         "loss_weight_dict": loss_weight_dict,
         "alpha": 0.75,
@@ -512,11 +514,11 @@ class RTDETR_DetModel(RTDETR_Model):
         }
         preds = self.predict(img, batch=targets) if preds is None else preds
         out = preds if self.training else preds[1]
-
-        loss = self.criterion(out, targets)
+        dfine_targets = convert_to_dfine_targets(targets)
+        loss = self.criterion(out, dfine_targets)
 
         return sum(loss.values()), torch.as_tensor(
-            [loss[k].detach() for k in self.loss_config["losses"]], device=img.device,
+            [loss[k].detach() for k in self.loss_config["loss_names"]], device=img.device,
         )
     
     def init_criterion(self):

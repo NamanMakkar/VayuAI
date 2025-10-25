@@ -229,6 +229,9 @@ def check_pip_update_available():
 def check_python(min: str = "3.8.0") -> bool:
     return check_version(PYTHON_VERSION, min, name="Python ", strict=True)
 
+def check_python_new(min: str = "3.8.0", strict=True) -> bool:
+    return check_version(PYTHON_VERSION, min, name="Python ", strict=strict)
+
 def check_suffix(file='vajra-v1-nano.pt', suffix='.pt', msg=""):
     if file and suffix:
         if isinstance(suffix, str):
@@ -435,3 +438,4 @@ def print_args(args: Optional[dict] = None, show_file=True, show_func=False):
     LOGGER.info(colorstr(string) + ", ".join(f"{k} = {strip_auth(v)}" for k, v in args.items()))
 
 IS_PYTHON_3_12 = PYTHON_VERSION.startswith("3.12")
+IS_PYTHON_MINIMUM_3_10 = check_python_new("3.10", strict=False)

@@ -74,6 +74,8 @@ CFG_BOOL_KEYS = {'save', 'exist_ok', 'verbose', 'deterministic', 'single_cls',
                  'show_boxes', 'keras', 'optimize', 'int8', 'dynamic', 'simplify',
                  'nms', 'profile', 'multi_scale'}
 
+MODELS = frozenset({models_for_tasks[task] for task in tasks})
+
 
 def config_to_dict(config):
     if isinstance(config, (str, Path)):

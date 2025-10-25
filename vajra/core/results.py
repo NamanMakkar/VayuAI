@@ -276,7 +276,9 @@ class Results(StringOps):
         probs=True, 
         show=False, 
         save=False, 
-        filename=None
+        filename=None,
+        color_mode="class",
+        txt_color=(255, 255, 255),
     ):
 
         if img is None and isinstance(self.orig_img, torch.Tensor):
@@ -307,21 +309,39 @@ class Results(StringOps):
                     .contiguous()
                     / 255
                 )
-                idx = pred_boxes.cls if pred_boxes else range(len(pred_masks))
-                annotator.masks(pred_masks.data, colors=[colors(x, True) for x in idx], im_gpu=im_gpu)
+            idx = (
+                pred_boxes.id if pred_boxes.is_track and color_mode == "instance"
+                else pred_boxes.cls if pred_boxes and color_mode == "class"
+                else reversed(range(len(pred_masks)))
+            )
+                #idx = pred_boxes.cls if pred_boxes else range(len(pred_masks))
+            annotator.masks(pred_masks.data, colors=[colors(x, True) for x in idx], im_gpu=im_gpu)
 
         if pred_boxes is not None and show_boxes:
-            for d in reversed(pred_boxes):
-                c, conf, id = int(d.cls), float(d.conf) if conf else None, None if d.id is None else int(d.id.item())
+            for i, d in enumerate(reversed(pred_boxes)):
+                c, d_conf, id = int(d.cls), float(d.conf) if conf else None, int(d.id.item()) if d.is_track else None
                 name = ("" if id is None else f"id:{id} ") + names[c]
-                label = (f"{name} {conf:.2f}" if conf else name) if labels else None
+                label = (f"{name} {d_conf:.2f}" if conf else name) if labels else None
                 box = d.xyxyxyxy.reshape(-1, 4, 2).squeeze() if is_obb else d.xyxy.squeeze()
-                annotator.box_label(box, label, color=colors(c, True), rotated=is_obb)
+                annotator.box_label(
+                    box, 
+                    label, 
+                    color=colors(
+                        c
+                        if color_mode=="class"
+                        else id
+                        if id is not None
+                        else i
+                        if color_mode == "instance"
+                        else None, 
+                        True), 
+                    rotated=is_obb
+                )
 
         if pred_probs is not None and show_probs:
-            text = ",\n".join(f"{names[j] if names else j} {pred_probs.data[j]:.2f}" for j in pred_probs.top5)
+            text = "\n".join(f"{names[j] if names else j} {pred_probs.data[j]:.2f}" for j in pred_probs.top5)
             x = round(self.orig_shape[0] * 0.03)
-            annotator.text([x, x], text, txt_color=(255, 255, 255))  # TODO: allow setting colors
+            annotator.text([x, x], text, txt_color=txt_color)  # TODO: allow setting colors
 
         # Plot Pose results
         if self.keypoints is not None:

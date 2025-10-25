@@ -14,7 +14,7 @@ from vajra.utils import LOGGER, colorstr
 from vajra.checks import check_version
 from vajra.instances import Instances2d
 from vajra.metrics import bbox_ioa
-from vajra.ops import segment2box, xyxyxyxy2xywhr
+from vajra.ops import segment2box, xyxyxyxy2xywhr, xywh_to_xyxy
 from vajra.utils.torch_utils import TORCHVISION_0_10, TORCHVISION_0_11, TORCHVISION_0_13
 from .utils import polygon2mask, polygons2masks_overlap, polygons2masks
 
@@ -1062,6 +1062,7 @@ class Format:
             labels["bboxes"][:, [1, 3]] /= h
         if self.batch_idx:
             labels["batch_idx"] = torch.zeros(nl)
+        #LOGGER.info(f"Formatted image shape: {labels['img'].shape}\n")
         return labels
 
     def _format_img(self, img):
@@ -1085,6 +1086,54 @@ class Format:
             masks = polygons2masks((h, w), segments, color=1, downsample_ratio=self.mask_ratio)
 
         return masks, instances, cls
+    
+class LoadVisualPrompt:
+    def __init__(self, scale_factor: float = 1 / 8) -> None:
+        self.scale_factor = scale_factor
+    
+    def make_mask(self, boxes: torch.Tensor, h: int, w: int) -> torch.Tensor:
+        x1, y1, x2, y2 = torch.chunk(boxes[:, :, None], 4, 1)
+        r = torch.arange(w)[None, None, :]
+        c = torch.arange(h)[None, :, None]
+        return (r >= x1) * (r < x2) * (c >= y1) * (c < y2)
+    
+    def __call__(self, labels: dict[str, Any]) -> dict[str, Any]:
+        img_size = labels["img"].shape[1:]
+        bboxes, masks = None, None
+        if "bboxes" in labels:
+            bboxes = labels["bboxes"]
+            bboxes = xywh_to_xyxy(bboxes) * torch.tensor(img_size)[[1, 0, 1, 0]]
+        
+        cls = labels["cls"].squeeze(-1).to(torch.int)
+        visuals = self.get_visuals(cls, img_size, bboxes=bboxes, masks=masks)
+        labels["visuals"] = visuals
+        return labels
+    
+    def get_visuals(
+            self,
+            category: int | np.ndarray | torch.Tensor,
+            shape: tuple[int, int],
+            bboxes: np.ndarray | torch.Tensor = None,
+            masks: np.ndarray | torch.Tensor = None,
+    ) -> torch.Tensor:
+        mask_size = (int(shape[0] * self.scale_factor), int(shape[1] * self.scale_factor))
+        if bboxes is not None:
+            if isinstance(bboxes, np.ndarray):
+                bboxes = torch.from_numpy(bboxes)
+                masks = self.make_mask(bboxes, *mask_size).float()
+        elif masks is not None:
+            if isinstance(masks, np.ndarray):
+                masks = torch.from_numpy(masks)
+            masks = F.interpolate(masks.unsqueeze(1), mask_size, mode="nearest").squeeze(1).float()
+        else:
+            raise ValueError("LoadVisualPrompt must have bboxes or masks in the label")
+        if not isinstance(category, torch.Tensor):
+            category = torch.tensor(category, dtype=torch.int)
+        cls_unique, inverse_indices = torch.unique(category, sorted=True, return_inverse=True)
+        visuals = torch.zeros(cls_unique.shape[0], *mask_size)
+        for idx, mask in zip(inverse_indices, masks):
+            visuals[idx] = torch.logical_or(visuals[idx], mask)
+        return visuals
 
 def vajra_transforms(dataset, imgsz, hyp, stretch=False):
     """Convert images to a size suitable for VajraV1 training."""

@@ -7290,10 +7290,19 @@ class BNContrastiveHead(nn.Module):
         self.norm = nn.BatchNorm2d(embed_dims)
         self.bias = nn.Parameter(torch.tensor([-10.0]))
         self.logit_scale = nn.Parameter(-1.0 * torch.ones([]))
+    
+    def fuse(self):
+        del self.norm
+        del self.bias
+        del self.logit_scale
+        self.forward = self.forward_fuse
 
-    def forward(self, x):
+    def forward_fuse(self, x, w):
+        return x
+
+    def forward(self, x, w):
         x = self.norm(x)
-        w = F.normalize(w, dims=-1, p=2)
+        w = F.normalize(w, dim=-1, p=2)
         x = torch.einsum("bchw,bkc->bkhw", x, w)
         return x * self.logit_scale.exp() + self.bias
 
@@ -7970,6 +7979,22 @@ class SwiGLUFFN(nn.Module):
         out = out.reshape(B, H, W, C).permute(0, 3, 1, 2)
         return out
 
+class SwiGLUFFN2(nn.Module):
+    def __init__(self, in_c, out_c, mlp_ratio=4.0):
+        super().__init__()
+        self.in_c = in_c
+        self.out_c = out_c
+        mlp_hidden_dim = int(in_c * mlp_ratio)
+        self.mlp_hidden_dim = mlp_hidden_dim
+        self.fc1 = nn.Linear(in_c, mlp_hidden_dim)
+        self.fc2 = nn.Linear(mlp_hidden_dim // 2, out_c)
+
+    def forward(self, x):
+        x1 = self.fc1(x)
+        x11, x12 = x1.chunk(2, 1)
+        hidden = F.silu(x11) * x12
+        return self.fc2(hidden)
+
 class Squeeze_Excite_Layer(nn.Module):
     def __init__(self, channels, reduction=4):
         super(Squeeze_Excite_Layer, self).__init__()
@@ -8160,3 +8185,61 @@ class ChannelMixer(nn.Module):
         out = residual + x
         out = out.transpose(1, 2).reshape(B, C, H, W)
         return out
+    
+class SAVPE(nn.Module):
+    def __init__(self, in_channels, intermediate_channels, embed_channels):
+        super().__init__()
+
+        self.branch1 = nn.ModuleList(
+            nn.Sequential(
+                ConvBNAct(x, intermediate_channels, 1, 3), ConvBNAct(intermediate_channels, intermediate_channels, 1, 3), nn.Upsample(scale_factor=i * 2) if i in {1, 2} else nn.Identity()
+            )
+            for i, x in enumerate(in_channels)
+        )
+
+        self.branch2 = nn.ModuleList(
+            nn.Sequential(ConvBNAct(x, intermediate_channels, 1, 3), nn.Upsample(scale_factor = i * 2) if i in {1, 2} else nn.Identity())
+            for i, x in enumerate(in_channels)
+        )
+
+        self.c = 16
+        self.branch3 = nn.Conv2d(3 * intermediate_channels, embed_channels, 1)
+        self.branch4 = nn.Conv2d(3 * intermediate_channels, self.c, 3, padding=1)
+        self.branch5 = nn.Conv2d(1, self.c, 3, padding=1)
+        self.branch6 = nn.Sequential(ConvBNAct(2 * self.c, self.c, 1, 3), nn.Conv2d(self.c, self.c, 3, padding=1))
+
+
+    def forward(self, x, vp):
+        y = [self.branch2[i](xi) for i, xi in enumerate(x)]
+        y = self.branch4(torch.cat(y, dim=1))
+
+        x = [self.branch1[i](xi) for i, xi in enumerate(x)]
+        x = self.branch3(torch.cat(x, dim=1))
+
+        B, C, H, W = x.shape
+        Q = vp.shape[1]
+
+        x = x.view(B, C, -1)
+
+        y = y.reshape(B, 1, self.c, H, W).expand(-1, Q, -1, -1, -1).reshape(B * Q, self.c, H, W)
+        vp = vp.reshape(B, Q, 1, H, W).reshape(B * Q, 1, H, W)
+
+        y = self.branch6(torch.cat((y, self.branch5(vp)), dim=1))
+        y = y.reshape(B, Q, self.c, -1)
+        vp = vp.reshape(B, Q, 1, -1)
+
+        score = y * vp + torch.logical_not(vp) * torch.finfo(y.dtype).min
+        score = F.softmax(score, dim=-1).to(y.dtype)
+        aggregated = score.transpose(-2, -3) @ x.reshape(B, self.c, C // self.c, -1).transpose(-1, -2)
+
+        return F.normalize(aggregated.transpose(-2, -3).reshape(B, Q, -1), dim=-1, p=2)
+    
+class Residual(nn.Module):
+    def __init__(self, m: nn.Module) -> None:
+        super().__init__()
+        self.m = m
+        nn.init.zeros_(self.m.fc2.bias)
+        nn.init.zeros_(self.m.fc2.weight)
+
+    def forward(self, x):
+        return x + self.m(x)

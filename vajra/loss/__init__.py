@@ -1,6 +1,7 @@
 # Vayuvahana Technologies Private Limited Vajra, AGPL-3.0 License
 
 import torch
+from typing import Any
 import torch.nn as nn
 import torch.nn.functional as F
 from torchvision.ops import sigmoid_focal_loss
@@ -731,7 +732,7 @@ class PoseLoss(DetectionLoss):
 
         for i in range(batch_size):
             keypoints_i = keypoints[batch_idx == i]
-            batched_keypoints[i, : keypoints_i.shape[0]]
+            batched_keypoints[i, : keypoints_i.shape[0]] = keypoints_i
 
         target_gt_idx_expanded = target_gt_idx.unsqueeze(-1).unsqueeze(-1)
 
@@ -739,7 +740,7 @@ class PoseLoss(DetectionLoss):
             1, target_gt_idx_expanded.expand(-1, -1, keypoints.shape[1], keypoints.shape[2])
         )
         
-        selected_keypoints /= stride_tensor.view(1, -1, 1, 1)
+        selected_keypoints[..., :2] /= stride_tensor.view(1, -1, 1, 1)
 
         keypoints_loss = 0
         keypoints_obj_loss = 0
@@ -754,3 +755,49 @@ class PoseLoss(DetectionLoss):
                 keypoints_obj_loss = self.bce_pose(pred_kpt[..., 2], kpt_mask.float())
         
         return keypoints_loss, keypoints_obj_loss
+    
+class TVPDetectionLoss:
+    def __init__(self, model):
+        self.vp_criterion = DetectionLoss(model)
+        self.orig_num_classes = self.vp_criterion.num_classes
+        self.orig_num_outputs = self.vp_criterion.num_outputs
+        self.orig_reg_max = self.vp_criterion.reg_max
+
+    def __call__(self, preds: Any, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        feats = preds[1] if isinstance(preds, tuple) else preds
+        if self.orig_reg_max * 4 + self.orig_num_classes == feats[0].shape[1]:
+            loss = torch.zeros(3, device=self.vp_criterion.device, requires_grad=True)
+            return loss, loss.detach()
+        
+        vp_feats = self._get_vp_features(feats)
+        vp_loss = self.vp_criterion(vp_feats, batch)
+        box_loss = vp_loss[0][1]
+        return box_loss, vp_loss[1]
+    
+    def _get_vp_features(self, feats: list[torch.Tensor]) -> list[torch.Tensor]:
+        vnc = feats[0].shape[1] - self.orig_reg_max * 4 - self.orig_num_classes
+        self.vp_criterion.num_classes = vnc
+        self.vp_criterion.num_outputs = vnc + self.vp_criterion.reg_max * 4
+        self.vp_criterion.assigner.num_classes = vnc
+
+        return [
+            torch.cat((box, cls_vp), dim=1)
+            for box, _, cls_vp in [xi.split((self.orig_reg_max * 4, self.orig_num_classes, vnc), dim=1) for xi in feats]
+        ]
+    
+class TVPSegmentationLoss(TVPDetectionLoss):
+    def __init__(self, model):
+        super().__init__(model)
+        self.vp_criterion = SegmentationLoss(model)
+
+    def __call__(self, preds: Any, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, torch.Tensor]:
+        feats, pred_masks, proto = preds if len(preds) == 3 else preds[1]
+
+        if self.orig_reg_max * 4 + self.orig_num_classes == feats[0].shape[1]:
+            loss = torch.zeros(4, device=self.vp_criterion.device, requires_grad=True)
+            return loss, loss.detach()
+        
+        vp_feats = self._get_vp_features(feats)
+        vp_loss = self.vp_criterion((vp_feats, pred_masks, proto), batch)
+        cls_loss = vp_loss[0][2]
+        return cls_loss, vp_loss[1]

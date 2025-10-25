@@ -2,7 +2,7 @@
 
 from .base import BaseDataset
 from .build import build_dataloader, build_vajra_dataset, load_inference_source, build_multilabel_cls_dataset, build_vajra_small_obj_dataset, build_vision_language_dataset
-from .dataset import ClassificationDataset, SemanticDataset, VajraDetDataset, VajraSmallObjDetDataset, VajraConcatDataset
+from .dataset import ClassificationDataset, SemanticDataset, VajraDetDataset, VajraSmallObjDetDataset, VajraConcatDataset, GroundingDataset, MultiModalDataset
 
 __all__ = (
     "BaseDataset",
@@ -11,6 +11,8 @@ __all__ = (
     "VajraDetDataset",
     "VajraSmallObjDetDataset",
     "VajraConcatDataset",
+    "MultimodalDataset",
+    "GroundingDataset",
     "build_vajra_dataset",
     "build_multilabel_cls_dataset",
     "build_vajra_small_obj_dataset",

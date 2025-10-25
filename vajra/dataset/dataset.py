@@ -2,6 +2,7 @@
 
 import json
 import contextlib
+from typing import Any
 from collections import defaultdict
 from itertools import repeat
 from multiprocessing.pool import ThreadPool
@@ -15,7 +16,8 @@ from PIL import Image
 from torch.utils.data import ConcatDataset
 
 from vajra.utils import LOCAL_RANK, NUM_THREADS, TQDM, colorstr, is_dir_writeable
-from vajra.ops import resample_segments
+from vajra.ops import resample_segments, segments_to_boxes
+from .converter import merge_multi_segment
 from .augment import Compose, Format, Instances2d, LetterBox, RandomLoadText, classify_augmentations, classify_transforms, vajra_transforms
 from .base import BaseDataset
 from .utils import HELP_URL, LOGGER, get_hash, img2label_paths, verify_image, verify_image_label
@@ -435,18 +437,49 @@ class MultiModalDataset(VajraDetDataset):
     def build_transforms(self, hyp=None):
         transforms = super().build_transforms(hyp)
         if self.augment:
-            transforms.insert(-1, RandomLoadText(max_samples=min(self.data["nc"], 80), padding=True))
+            transform = RandomLoadText(
+                max_samples=min(self.data["nc"], 80),
+                padding=True,
+                padding_value=self._get_neg_texts(self.category_freq),
+            )
+            transforms.insert(-1, transform)
         return transforms
+    
+    @property
+    def category_names(self):
+        names = self.data["names"].values()
+        return {n.strip() for name in names for n in name.split("/")}
+    
+    @property
+    def category_freq(self):
+        texts = [v.split("/") for v in self.data["names"].values()]
+        category_freq = defaultdict(int)
+        for label in self.labels:
+            for c in label["cls"].squeeze(-1):
+                text = texts[int(c)]
+                for t in text:
+                    t = t.strip()
+                    category_freq[t] += 1
+        return category_freq
+    
+    @staticmethod
+    def _get_neg_texts(category_freq: dict, threshold: int = 100) -> list[str]:
+        threshold = min(max(category_freq.values()), 100)
+        return [k for k, v in category_freq.items() if v >= threshold]
 
-class VisionLanguageDataset(VajraDetDataset):
-    def __init__(self, *args, task="detect", json_file, **kwargs):
+
+class GroundingDataset(VajraDetDataset):
+    def __init__(self, *args, task="detect", json_file = "", max_samples = 80, **kwargs):
+        assert task in {"detect", "segment"}, "Currently only supports 'detect' and 'segment' tasks"
         self.json_file = json_file
-        super().__init__(*args, task=task, data={}, **kwargs)
+        self.max_samples = max_samples
+        super().__init__(*args, task=task, data={"channels": 3}, **kwargs)
 
     def get_img_files(self, img_path):
         return []
 
-    def get_labels(self):
+    def cache_labels(self, path: Path = Path("./labels.cache")) -> dict[str, Any]:
+        x = {"labels": []}
         labels = []
         LOGGER.info("Loading annotations file...")
         with open(self.json_file, "r") as f:
@@ -464,6 +497,7 @@ class VisionLanguageDataset(VajraDetDataset):
                 continue
             self.im_files.append(str(im_file))
             bboxes = []
+            segments = []
             cat2id = {}
             texts = []
 
@@ -487,25 +521,105 @@ class VisionLanguageDataset(VajraDetDataset):
 
                 if box not in bboxes:
                     bboxes.append(box)
+                    if ann.get("segmentation") is not None:
+                        if len(ann["segmentation"]) == 0:
+                            segments.append(box)
+                            continue
+                        elif len(ann["segmentation"]) > 1:
+                            s = merge_multi_segment(ann["segmentation"])
+                            s = (np.concatenate(s, axis=0) / np.array([width, height], dtype=np.float32)).reshape(-1).tolist()
+                        else:
+                            s = [j for i in ann["segmentation"] for j in i]
+                            s = (
+                                (np.array(s, dtype=np.float32).reshape(-1, 2) / np.array([width, height], dtype=np.float32))
+                                .reshape(-1)
+                                .tolist()
+                            )
+                        s = [cls] + s
+                        segments.append(s)
             label = np.array(bboxes, dtype=np.float32) if len(bboxes) else np.zeros((0, 5), dtype=np.float32)
-            labels.append(
+
+            if segments:
+                classes = np.array([x[0] for x in segments], dtype=np.float32)
+                segments = [np.array(x[1:], dtype=np.float32).reshape(-1, 2) for x in segments]
+                label = np.concatenate((classes.reshape(-1, 1), segments_to_boxes(segments)), 1)
+            label = np.array(label, dtype=np.float32)
+            x["labels"].append(
                 {
                     "im_file": im_file,
                     "shape": (height, width),
                     "cls": label[:, 0:1],  # n, 1
                     "bboxes": label[:, 1:],  # n, 4
+                    "segments": segments,
                     "normalized": True,
                     "bbox_format": "xywh",
                     "texts": texts,
                 }
             )
-        return labels
+        x["hash"] = get_hash(self.json_file)
+        save_dataset_cache_file(self.prefix, path, x, DATASET_CACHE_VERSION)
+        return x
+    
+    def verify_labels(self, labels: list[dict[str, Any]]) -> None:
+        expected_counts = {
+            "final_mixed_train_no_coco_segm": 3662412,
+            "final_mixed_train_no_coco": 3681235,
+            "final_flickr_separateGT_train_segm": 638214,
+            "final_flickr_separateGT_train": 640704,
+        }
 
+        instance_count = sum(label["bboxes"].shape[0] for label in labels)
+        for data_name, count in expected_counts.items():
+            if data_name in self.json_file:
+                assert instance_count == count, f"'{self.json_file}' has {instance_count} instances, expected {count}."
+                return
+        LOGGER.warning(f"Skipping instance count verification for unrecognized dataset '{self.json_file}'")
+    
+    def get_labels(self) -> list[dict]:
+        cache_path = Path(self.json_file).with_suffix(".cache")
+        try:
+            cache, _ = load_dataset_cache_file(cache_path), True
+            assert cache["version"] == DATASET_CACHE_VERSION
+            assert cache["hash"] == get_hash(self.json_file)
+        except (FileNotFoundError, AssertionError, AttributeError, ModuleNotFoundError):
+            cache, _ = self.cache_labels(cache_path), False
+        [cache.pop(k) for k in ("hash", "version")]
+        labels = cache["labels"]
+        self.verify_labels(labels)
+        self.im_files = [str(label["im_file"]) for label in labels]
+        if LOCAL_RANK in {-1, 0}:
+            LOGGER.info(f"Load {self.json_file} from cache file {cache_path}")
+        return labels
+        
     def build_transforms(self, hyp=None):
         transforms = super().build_transforms(hyp)
         if self.augment:
-            transforms.insert(-1, RandomLoadText(max_samples=80, padding=True))
+            transform = RandomLoadText(
+                max_samples=min(self.max_samples, 80),
+                padding=True,
+                padding_value=self._get_neg_texts(self.category_freq)
+            )
+            transforms.insert(-1, transform)
         return transforms
+    
+    @property
+    def category_names(self):
+        return {t.strip() for label in self.labels for text in label["texts"] for t in text}
+    
+    @property
+    def category_freq(self):
+        categore_freq = defaultdict(int)
+        for label in self.labels:
+            for text in label["texts"]:
+                for t in text:
+                    t = t.strip()
+                    categore_freq[t] += 1
+        return categore_freq
+    
+    @staticmethod
+    def _get_neg_texts(category_freq: dict, threshold: int = 100) -> list[str]:
+        threshold = min(max(category_freq.values()), 100)
+        return [k for k, v in category_freq.items() if v >= threshold]
 
 class VajraConcatDataset(ConcatDataset):
     @staticmethod

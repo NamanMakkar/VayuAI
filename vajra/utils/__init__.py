@@ -15,6 +15,7 @@ import IPython
 import platform
 import inspect
 import contextlib
+import importlib.metadata
 import logging
 import logging.config
 import urllib
@@ -51,9 +52,15 @@ ROOT = FILE.parents[1]
 HYPERPARAMS_CFG_PATH = ROOT / "configs/hyperparams/default_hyp.yaml"
 HYPERPARAMS_DETR_ARGS_PATH = ROOT / "configs/hyperparams/detr_hyp.yaml"
 ASSETS = ROOT / "assets"
+ASSETS_URL = "https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.4"
 NUM_THREADS = min(8, max(1, os.cpu_count() - 1))
 MACOS, WINDOWS, LINUX = (platform.system() == x for x in ["Darwin", "Windows", "Linux"]) # platform booleans
+MACOS_VERSION = platform.mac_ver()[0] if MACOS else None
+NOT_MACOS14 = not (MACOS and MACOS_VERSION.startswith("14."))
 ARM64 = platform.machine() in ("arm64", "aarch64") # arm64 boolean
+PYTHON_VERSION = platform.python_version()
+TORCH_VERSION = str(torch.__version__) 
+TORCHVISION_VERSION = importlib.metadata.version("torchvision")
 HELP_MSG = """
             1. Install the Vajra package
 

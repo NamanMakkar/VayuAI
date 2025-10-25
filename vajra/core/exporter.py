@@ -223,7 +223,7 @@ class Exporter:
         }
 
         if model.task == "pose":
-            self.metadata["kpt_shape"] = model.model[-1].kpt_shape
+            self.metadata["kpt_shape"] = model.model[-1].keypoint_shape
 
 
         LOGGER.info(

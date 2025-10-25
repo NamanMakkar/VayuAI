@@ -52,7 +52,7 @@ class DetectionValidator(Validator):
         val = self.data.get(self.args.split, "")
         self.is_coco = isinstance(val, str) and "coco" in val and val.endswith(f"{os.sep}val2017.txt")
         self.class_map = coco80_to_coco91_class() if self.is_coco else list(range(1000))
-        self.args.save_json |= self.is_coco
+        self.args.save_json |= self.args.val and self.is_coco and not self.training
         self.names = model.names
         self.num_classes = len(model.names)
         self.metrics.names = self.names

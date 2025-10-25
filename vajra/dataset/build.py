@@ -23,7 +23,7 @@ from vajra.dataset.loaders import (
 from vajra.dataset.utils import IMG_FORMATS, VID_FORMATS
 from vajra.utils import RANK, colorstr, LOGGER
 from vajra.checks import check_file
-from .dataset import VajraDetDataset, MultiLabelClassificationDataset, VajraSmallObjDetDataset, VisionLanguageDataset, MultiModalDataset
+from .dataset import VajraDetDataset, MultiLabelClassificationDataset, VajraSmallObjDetDataset, GroundingDataset, MultiModalDataset
 from .utils import PIN_MEMORY
 
 class InfiniteDataLoader(dataloader.DataLoader):
@@ -122,7 +122,7 @@ def build_vajra_small_obj_dataset(cfg, img_path, batch, data, mode="train", rect
     )
 
 def build_vision_language_dataset(cfg, img_path, json_file, batch, mode="train", rect=False, stride=32):
-    return VisionLanguageDataset(
+    return GroundingDataset(
         img_path=img_path,
         json_file=json_file,
         img_size=cfg.img_size,

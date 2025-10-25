@@ -13,6 +13,28 @@ from vajra.utils.dfine_ops import box_cxcywh_to_xyxy, box_iou, generalized_box_i
 from vajra.utils import get_world_size, is_dist_available_and_initialized
 from vajra.utils.torch_utils import autocast
 
+def convert_to_dfine_targets(targets):
+    """ Converts from xywh to cxcywh for the DFINE loss criterion """
+    labels = targets["labels"]
+    boxes = targets["boxes"]
+    batch_idx = targets["batch_idx"]
+    dfine_targets = []
+
+    for i in batch_idx.unique(sorted=True):
+        mask = batch_idx == i
+        img_labels = labels[mask].long()
+
+        x, y, w, h = boxes[mask].unbind(-1)
+        cx = x + 0.5 * w
+        cy = y + 0.5 * h
+        boxes_cxcywh = torch.stack([cx, cy, w, h], dim=-1)
+        dfine_targets.append({
+            "labels": img_labels,
+            "boxes": boxes_cxcywh,
+        })
+    return dfine_targets
+
+
 class VarifocalLoss(nn.Module):
     def __init__(self, alpha=0.75, gamma=2.0):
         super().__init__()
@@ -517,82 +539,6 @@ class DEIMCriterion(nn.Module):
         self.mal_alpha = mal_alpha
         self.use_uni_set = use_uni_set
 
-    def _get_index(self, match_indices):
-        batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(match_indices)])
-        src_idx = torch.cat([src for (src, _) in match_indices])
-        dst_idx = torch.cat([dst for (_, dst) in match_indices])
-        return (batch_idx, src_idx), dst_idx
-    
-    def _get_go_indices(self, indices, indices_aux_list):
-        """Get a matching union set across all decoder layers. """
-        results = []
-        for indices_aux in indices_aux_list:
-            indices = [(torch.cat([idx1[0], idx2[0]]), torch.cat([idx1[1], idx2[1]]))
-                        for idx1, idx2 in zip(indices.copy(), indices_aux.copy())]
-
-        for ind in [torch.cat([idx[0][:, None], idx[1][:, None]], 1) for idx in indices]:
-            unique, counts = torch.unique(ind, return_counts=True, dim=0)
-            count_sort_indices = torch.argsort(counts, descending=True)
-            unique_sorted = unique[count_sort_indices]
-            column_to_row = {}
-            for idx in unique_sorted:
-                row_idx, col_idx = idx[0].item(), idx[1].item()
-                if row_idx not in column_to_row:
-                    column_to_row[row_idx] = col_idx
-            final_rows = torch.tensor(list(column_to_row.keys()), device=ind.device)
-            final_cols = torch.tensor(list(column_to_row.values()), device=ind.device)
-            results.append((final_rows.long(), final_cols.long()))
-        return results
-    
-    def _clear_cache(self):
-        self.fgl_targets, self.fgl_targets_dn = None, None
-        self.own_targets, self.own_targets_dn = None, None
-        self.num_pos, self.num_neg = None, None
-
-class DEIMCriterion(nn.Module):
-    """ This class computes the loss for DEIM.
-    """
-    __share__ = ['num_classes', ]
-    __inject__ = ['matcher', ]
-
-    def __init__(self, \
-        matcher,
-        weight_dict,
-        losses,
-        alpha=0.2,
-        gamma=2.0,
-        num_classes=80,
-        reg_max=32,
-        boxes_weight_format=None,
-        share_matched_indices=False,
-        mal_alpha=None,
-        use_uni_set=True,
-        ):
-        """Create the criterion.
-        Parameters:
-            matcher: module able to compute a matching between targets and proposals.
-            weight_dict: dict containing as key the names of the losses and as values their relative weight.
-            losses: list of all the losses to be applied. See get_loss for list of available losses.
-            num_classes: number of object categories, omitting the special no-object category.
-            reg_max (int): Max number of the discrete bins in D-FINE.
-            boxes_weight_format: format for boxes weight (iou, ).
-        """
-        super().__init__()
-        self.num_classes = num_classes
-        self.matcher = matcher
-        self.weight_dict = weight_dict
-        self.losses = losses
-        self.boxes_weight_format = boxes_weight_format
-        self.share_matched_indices = share_matched_indices
-        self.alpha = alpha
-        self.gamma = gamma
-        self.fgl_targets, self.fgl_targets_dn = None, None
-        self.own_targets, self.own_targets_dn = None, None
-        self.reg_max = reg_max
-        self.num_pos, self.num_neg = None, None
-        self.mal_alpha = mal_alpha
-        self.use_uni_set = use_uni_set
-
     def loss_labels_focal(self, outputs, targets, indices, num_boxes):
         assert 'pred_logits' in outputs
         src_logits = outputs['pred_logits']
@@ -606,13 +552,13 @@ class DEIMCriterion(nn.Module):
         loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
 
         return {'loss_focal': loss}
-
+    
     def loss_labels_vfl(self, outputs, targets, indices, num_boxes, values=None):
         assert 'pred_boxes' in outputs
         idx = self._get_src_permutation_idx(indices)
         if values is None:
             src_boxes = outputs['pred_boxes'][idx]
-            target_boxes = torch.cat([targets['boxes'][i] for i in indices], dim=0)
+            target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
             ious, _ = box_iou(box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes))
             ious = torch.diag(ious).detach()
         else:
@@ -635,13 +581,13 @@ class DEIMCriterion(nn.Module):
         loss = F.binary_cross_entropy_with_logits(src_logits, target_score, weight=weight, reduction='none')
         loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
         return {'loss_vfl': loss}
-
+    
     def loss_labels_mal(self, outputs, targets, indices, num_boxes, values=None):
         assert 'pred_boxes' in outputs
         idx = self._get_src_permutation_idx(indices)
         if values is None:
             src_boxes = outputs['pred_boxes'][idx]
-            target_boxes = torch.cat([targets['boxes'][i] for i in indices], dim=0)
+            target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
             ious, _ = box_iou(box_cxcywh_to_xyxy(src_boxes), box_cxcywh_to_xyxy(target_boxes))
             ious = torch.diag(ious).detach()
         else:
@@ -669,7 +615,7 @@ class DEIMCriterion(nn.Module):
         loss = F.binary_cross_entropy_with_logits(src_logits, target_score, weight=weight, reduction='none')
         loss = loss.mean(1).sum() * src_logits.shape[1] / num_boxes
         return {'loss_mal': loss}
-
+    
     def loss_boxes(self, outputs, targets, indices, num_boxes, boxes_weight=None):
         """Compute the losses related to the bounding boxes, the L1 regression loss and the GIoU loss
            targets dicts must contain the key "boxes" containing a tensor of dim [nb_target_boxes, 4]
@@ -678,7 +624,7 @@ class DEIMCriterion(nn.Module):
         assert 'pred_boxes' in outputs
         idx = self._get_src_permutation_idx(indices)
         src_boxes = outputs['pred_boxes'][idx]
-        target_boxes = torch.cat([targets['boxes'][i] for i in indices], dim=0)
+        target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
         losses = {}
         loss_bbox = F.l1_loss(src_boxes, target_boxes, reduction='none')
         losses['loss_bbox'] = loss_bbox.sum() / num_boxes
@@ -689,7 +635,7 @@ class DEIMCriterion(nn.Module):
         losses['loss_giou'] = loss_giou.sum() / num_boxes
 
         return losses
-
+    
     def loss_local(self, outputs, targets, indices, num_boxes, T=5):
         """Compute Fine-Grained Localization (FGL) Loss
             and Decoupled Distillation Focal (DDF) Loss. """
@@ -697,7 +643,7 @@ class DEIMCriterion(nn.Module):
         losses = {}
         if 'pred_corners' in outputs:
             idx = self._get_src_permutation_idx(indices)
-            target_boxes = torch.cat([targets['boxes'][i] for i in indices], dim=0)
+            target_boxes = torch.cat([t['boxes'][i] for t, (_, i) in zip(targets, indices)], dim=0)
 
             pred_corners = outputs['pred_corners'][idx].reshape(-1, (self.reg_max+1))
             ref_points = outputs['ref_points'][idx].detach()
@@ -741,7 +687,7 @@ class DEIMCriterion(nn.Module):
                     losses['loss_ddf'] = (loss_match_local1 * self.num_pos + loss_match_local2 * self.num_neg) / (self.num_pos + self.num_neg)
 
         return losses
-
+    
     def _get_src_permutation_idx(self, indices):
         # permute predictions following indices
         batch_idx = torch.cat([torch.full_like(src, i) for i, (src, _) in enumerate(indices)])
@@ -753,7 +699,7 @@ class DEIMCriterion(nn.Module):
         batch_idx = torch.cat([torch.full_like(tgt, i) for i, (_, tgt) in enumerate(indices)])
         tgt_idx = torch.cat([tgt for (_, tgt) in indices])
         return batch_idx, tgt_idx
-
+    
     def _get_go_indices(self, indices, indices_aux_list):
         """Get a matching union set across all decoder layers. """
         results = []
@@ -790,7 +736,7 @@ class DEIMCriterion(nn.Module):
         }
         assert loss in loss_map, f'do you really want to compute {loss} loss?'
         return loss_map[loss](outputs, targets, indices, num_boxes, **kwargs)
-
+    
     def forward(self, outputs, targets, **kwargs):
         """ This performs the loss computation.
         Parameters:
@@ -811,12 +757,10 @@ class DEIMCriterion(nn.Module):
             if 'pre_outputs' in outputs:
                 aux_outputs_list = outputs['aux_outputs'] + [outputs['pre_outputs']]
             for i, aux_outputs in enumerate(aux_outputs_list):
-                LOGGER.info(f"aux_outputs + pre_outputs\n\n")
                 indices_aux = self.matcher(aux_outputs, targets)['indices']
                 cached_indices.append(indices_aux)
                 indices_aux_list.append(indices_aux)
             for i, aux_outputs in enumerate(outputs['enc_aux_outputs']):
-                LOGGER.info(f"enc_aux_outputs\n\n")
                 indices_enc = self.matcher(aux_outputs, targets)['indices']
                 cached_indices_enc.append(indices_enc)
                 indices_aux_list.append(indices_enc)
@@ -831,8 +775,7 @@ class DEIMCriterion(nn.Module):
             assert 'aux_outputs' in outputs, ''
 
         # Compute the average number of target boxes accross all nodes, for normalization purposes
-        LOGGER.info(f"targets: {targets}\n")
-        num_boxes = len(targets["labels"]) #sum(len(t["labels"]) for t in targets)
+        num_boxes = sum(len(t["labels"]) for t in targets)
         num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
         if is_dist_available_and_initialized():
             torch.distributed.all_reduce(num_boxes)
@@ -940,7 +883,7 @@ class DEIMCriterion(nn.Module):
         # For debugging Objects365 pre-train.
         losses = {k:torch.nan_to_num(v, nan=0.0) for k, v in losses.items()}
         return losses
-
+    
     def get_loss_meta_info(self, loss, outputs, targets, indices):
         if self.boxes_weight_format is None:
             return {}
@@ -965,7 +908,7 @@ class DEIMCriterion(nn.Module):
             meta = {}
 
         return meta
-
+    
     @staticmethod
     def get_cdn_matched_indices(dn_meta, targets):
         """get_cdn_matched_indices
@@ -986,8 +929,7 @@ class DEIMCriterion(nn.Module):
                     torch.zeros(0, dtype=torch.int64,  device=device)))
 
         return dn_match_indices
-
-
+    
     def feature_loss_function(self, fea, target_fea):
         loss = (fea - target_fea) ** 2 * ((fea > 0) | (target_fea > 0)).float()
         return torch.abs(loss)
@@ -1018,5 +960,3 @@ class DEIMCriterion(nn.Module):
         step = .5 / (num_layers - 1)
         opt_list = [.5  + step * i for i in range(num_layers)] if num_layers > 1 else [1]
         return opt_list
-    
-

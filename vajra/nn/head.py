@@ -10,9 +10,10 @@ from typing import OrderedDict, List
 from torch.nn.init import xavier_uniform_, constant_ 
 from vajra.utils.dfine_ops import get_contrastive_denoising_training_group
 from vajra.tal.anchor_generator import dist2bbox, dist2rbox, generate_anchors
-from vajra.nn.modules import DepthwiseConvBNAct, ConvMakkarNorm, ConvBNAct, DistributedFocalLoss, ProtoMaskModule, UConv, BNContrastiveHead, ContrastiveHead, ImagePoolingAttention, RepVGGDW
+from vajra.nn.modules import DepthwiseConvBNAct, ConvMakkarNorm, ConvBNAct, DistributedFocalLoss, ProtoMaskModule, UConv, BNContrastiveHead, ContrastiveHead, ImagePoolingAttention, RepVGGDW, Residual, SwiGLUFFN2, SAVPE
 from vajra.nn.transformer import ScaleAdaptiveDecoderLayer, ScaleAdaptiveTransformerDecoder, MLP, HybridEncoder, TransformerDecoder, TransformerDecoderLayer, Integral
-from vajra.utils import LOGGER
+from vajra.utils import LOGGER, NOT_MACOS14
+from vajra.utils.torch_utils import smart_inference_mode, fuse_conv_and_bn
 from vajra.nn.utils import bias_init_with_prob
 
 class Classification(nn.Module):
@@ -248,7 +249,10 @@ class PoseDetection(Detection):
         else:
             y = keypoints.clone()
             if ndim == 3:
-                y[:, 2::3] = y[:, 2::3].sigmoid_()
+                if NOT_MACOS14:
+                    y[:, 2::ndim].sigmoid_()
+                else:
+                    y[:, 2::ndim] = y[:, 2::ndim].sigmoid_()
             y[:, 0::ndim] = (y[:, 0::ndim] * 2.0 + (self.anchors[0] - 0.5)) * self.strides
             y[:, 1::ndim] = (y[:, 1::ndim] * 2.0 + (self.anchors[1] - 0.5)) * self.strides
             return y
@@ -981,19 +985,13 @@ class DFINETransformer(nn.Module):
                 "up": self.up,
                 "reg_scale": self.reg_scale
             }
-        #LOGGER.info(f"out_logits: {out_logits}; shape: {out_logits.shape}\n")
-        #LOGGER.info(f"pred_logits: {out_logits[-1]}; shape: {out_logits[-1].shape}\n")
+        
         if self.training and self.aux_loss:
             out["aux_outputs"] = self._set_aux_loss2(
                 out_logits[:-1], out_bboxes[:-1], out_corners[:-1], out_refs[:-1], out_corners[-1], out_logits[-1]
             )
-            #for i, oup in enumerate(out["aux_outputs"]):
-                #LOGGER.info(f"aux_outputs pred_logits shape: {oup['pred_logits'].shape}\n")
             out["enc_aux_outputs"] = self._set_aux_loss(enc_topk_logits_list, enc_topk_bboxes_list)
-            #for i, oup in enumerate(out["enc_aux_outputs"]):
-                #LOGGER.info(f"enc_aux_outputs pred_logits shape: {oup['pred_logits'].shape}\n")
             out["pre_outputs"] = {"pred_logits": pre_logits, "pred_boxes": pre_bboxes}
-            #LOGGER.info(f"pre_output pred_logits shape: {out['pre_outputs']['pred_logits'].shape}")
             out["enc_meta"] = {"class_agnostic": self.query_select_method == "agnostic"}
 
             if dn_meta is not None:
@@ -1006,7 +1004,7 @@ class DFINETransformer(nn.Module):
         if self.training:
             return out
         
-        y = torch.cat((out_bboxes[-1], out_logits[-1].sigmoid()), -1)
+        y = torch.cat((out_bboxes[-1], out_logits[-1]), -1)
 
         return y if self.export else (y, out)
     
@@ -1032,3 +1030,227 @@ class DFINETransformer(nn.Module):
     
     def get_module_info(self):
         return "DFINETransformer", f"[{self.num_classes}, {self.num_queries}, {self.hidden_dim}, {self.feat_channels}, {self.feat_strides}, {self.hidden_dim}, {self.num_levels}, {self.nhead}, {self.num_layers}]"
+    
+class LRPCHead(nn.Module):
+    def __init__(self, vocab: nn.Module, pf: nn.Module, loc: nn.Module, enabled: bool = True):
+        super().__init__()
+        self.vocab = self.conv2linear(vocab) if enabled else vocab
+        self.pf = pf
+        self.loc = loc
+        self.enabled = enabled
+
+    def conv2linear(self, conv: nn.Conv2d) -> nn.Linear:
+        assert isinstance(conv, nn.Conv2d) and conv.kernel_size == (1, 1)
+        linear = nn.Linear(conv.in_channels, conv.out_channels)
+        linear.weight.data = conv.weight.view(conv.out_channels, -1).data
+        linear.bias.data = conv.bias.data
+        return linear
+    
+    def forward(self, cls_feat: torch.Tensor, loc_feat: torch.Tensor, conf: float) -> tuple[tuple, torch.Tensor]:
+        if self.enabled:
+            pf_score = self.pf(cls_feat)[0, 0].flatten(0)
+            mask = pf_score.sigmoid() > conf
+            cls_feat = cls_feat.flatten(2).transpose(-1, -2)
+            cls_feat = self.vocab(cls_feat[:, mask] if conf else cls_feat * mask.unsqueeze(-1).int())
+            return (self.loc(loc_feat), cls_feat.transpose(-1, -2)), mask
+        else:
+            cls_feat = self.vocab(cls_feat)
+            loc_feat = self.loc(loc_feat)
+            return (loc_feat, cls_feat.flatten(2)), torch.ones(
+                cls_feat.shape[2] * cls_feat.shape[3], device=cls_feat.device, dtype=torch.bool 
+            )
+        
+class PEDetection(Detection):
+    is_fused = False
+
+    def __init__(self, num_classes = 80, embed_dim = 512, with_bn = False, in_channels = []):
+        super().__init__(num_classes, in_channels)
+        c3 = max(in_channels[0], min(self.num_classes, 100))
+        assert c3 <= embed_dim
+        assert with_bn
+        self.branch_cls = (
+            nn.ModuleList(nn.Sequential(ConvBNAct(ch, c3, 1, 3), ConvBNAct(c3, c3, 1, 3), nn.Conv2d(c3, embed_dim, 1)) for ch in in_channels) 
+            if self.legacy
+            else
+            nn.ModuleList(nn.Sequential(nn.Sequential(DepthwiseConvBNAct(ch, ch, 1, 3), ConvBNAct(ch, c3, 1, 1)),
+                                        nn.Sequential(DepthwiseConvBNAct(c3, c3, 1, 3), ConvBNAct(c3, c3, 1, 1)),
+                                        nn.Conv2d(c3, embed_dim, 1)
+                                        )
+                            for ch in in_channels
+            )
+        )
+
+        self.branch3 = nn.ModuleList(BNContrastiveHead(embed_dims=embed_dim) if with_bn else ContrastiveHead() for _ in in_channels)
+
+        self.reprta = Residual(SwiGLUFFN2(embed_dim, embed_dim))
+        self.savpe = SAVPE(in_channels, c3, embed_dim)
+        self.embed = embed_dim
+
+    @smart_inference_mode()
+    def fuse(self, txt_feats: torch.Tensor):
+        if self.is_fused:
+            return
+        
+        assert not self.training
+        txt_feats = txt_feats.to(torch.float32).squeeze(0)
+        for cls_head, bn_head in zip(self.branch_cls, self.branch3):
+            assert isinstance(cls_head, nn.Sequential)
+            assert isinstance(bn_head, nn.Sequential)
+            conv = cls_head[-1]
+            assert isinstance(conv, nn.Conv2d)
+            logit_scale = bn_head.logit_scale
+            bias = bn_head.bias
+            norm = bn_head.norm
+            t = txt_feats * logit_scale.exp()
+
+            conv: nn.Conv2d = fuse_conv_and_bn(conv, norm)
+
+            w = conv.weight.data.squeeze(-1).squeeze(-1)
+            b = conv.bias.data
+
+            w = t @ w
+            b1 = (t @ b.reshape(-1).unsqueeze(-1)).squeeze(-1)
+            b2 = torch.ones_like(b1) * bias
+
+            conv = (
+                nn.Conv2d(
+                    conv.in_channels,
+                    w.shape[0],
+                    kernel_size=1,
+                ).requires_grad_(False).to(conv.weight.device)
+            )
+
+            conv.weight.data.copy_(w.unsqueeze(-1).unsqueeze(-1))
+            conv.bias.data.copy_(b1 + b2)
+            cls_head[-1] = conv
+
+            bn_head.fuse()
+        
+        del self.reprta
+        self.reprta = nn.Identity()
+        self.is_fused = True
+
+    def get_tpe(self, tpe: torch.Tensor | None) -> torch.Tensor | None:
+        return None if tpe is None else F.normalize(self.reprta(tpe), dim=-1, p=2)
+    
+    def get_vpe(self, x: list[torch.Tensor], vpe: torch.Tensor) -> torch.Tensor:
+        if vpe.shape[1] == 0:
+            return torch.zeros(x[0].shape[0], 0, self.embed, device=x[0].device)
+        if vpe.ndim == 4:
+            vpe = self.savpe(x, vpe)
+        assert vpe.ndim == 3
+        return vpe
+    
+    def forward_lrpc(self, x: list[torch.Tensor], return_mask: bool = False) -> torch.Tensor | tuple:
+        masks = []
+        assert self.is_fused, "Prompt-free inference requires model to be fused!"
+        for i in range(self.num_det_layers):
+            cls_feat = self.branch_cls[i](x[i])
+            loc_feat = self.branch_det[i](x[i])
+            assert isinstance(self.lrpc[i], LRPCHead)
+            x[i], mask = self.lrpc[i](
+                cls_feat, loc_feat, 0 if self.export and not self.dynamic else getattr(self, "conf", 0.001)
+            )
+            masks.append(mask)
+        shape = x[0][0].shape
+        if self.dynamic or self.shape != shape:
+            self.anchors, self.strides = (x.transpose(0, 1) for x in generate_anchors([b[0] for b in x], self.stride, 0.5))
+            self.shape = shape
+        box = torch.cat([xi[0].view(shape[0], self.reg_max * 4, -1) for xi in x], 2)
+        cls = torch.cat([xi[1] for xi in x], 2)
+
+        if self.export and self.format in {"tflite", "edgetpu"}:
+            grid_h = shape[2]
+            grid_w = shape[3]
+            grid_size = torch.tensor([grid_w, grid_h, grid_w, grid_h], device=box.device).reshape(1, 4, 1)
+            norm = self.strides / (self.stride[0] * grid_size)
+            dbox = self.decode_bboxes(self.distributed_focal_loss(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2])
+        else:
+            dbox = self.decode_bboxes(self.distributed_focal_loss(box), self.anchors.unsqueeze(0)) * self.strides
+
+        mask = torch.cat(masks)
+        y = torch.cat((dbox if self.export and not self.dynamic else dbox[..., mask], cls.sigmoid()), 1)
+
+        if return_mask:
+            return (y, mask) if self.export else ((y, x), mask)
+        else:
+            return y if self.export else (y, x)
+        
+    def forward(self, x: list[torch.Tensor], cls_pe: torch.Tensor, return_mask: bool = False) -> torch.Tensor | tuple:
+        if hasattr(self, "lrpc"):
+            return self.forward_lrpc(x, return_mask)
+        for i in range(self.num_det_layers):
+            x[i] = torch.cat((self.branch_det[i](x[i]), self.branch3[i](self.branch_cls[i](x[i]), cls_pe)), 1)
+        if self.training:
+            return x
+        self.num_det_layers = self.num_classes + self.reg_max * 4
+        #y = self._inference(x)
+
+        shape = x[0].shape
+        x_cat = torch.cat([xi.view(shape[0], self.num_outputs_per_anchor, -1) for xi in x], 2)
+        if self.dynamic or self.shape != shape:
+            self.anchors, self.strides = (x.transpose(0, 1) for x in generate_anchors(x, self.stride, 0.5))
+            self.shape = shape
+        
+        if self.export and self.format in {"saved_model", "pb", "tflite", "edgetpu", "tfjs"}:
+            box = x_cat[:, : self.reg_max * 4]
+            cls = x_cat[:, self.reg_max * 4 :]
+        else:
+            box, cls = x_cat.split((self.reg_max * 4, self.num_classes), 1)
+        
+        if self.export and self.format in {"tflite", "edgetpu"}:
+            grid_h = shape[2]
+            grid_w = shape[3]
+            grid_size = torch.tensor([grid_w, grid_h, grid_w, grid_h], device=box.device).reshape(1, 4, 1)
+            norm = self.strides / (self.stride[0] * grid_size)
+            dbox = self.decode_bboxes(self.distributed_focal_loss(box) * norm, self.anchors.unsqueeze(0) * norm[:, :2])
+        else:
+            dbox = self.decode_bboxes(self.distributed_focal_loss(box), self.anchors.unsqueeze(0)) * self.strides
+
+        y = torch.cat((dbox, cls.sigmoid()), 1)
+        return y if self.export else (y, x)
+    
+    def bias_init(self):
+        m = self
+        for a, b, c, s in zip(m.branch_det, m.branch_cls, m.branch3, m.stride):
+            a[-1].bias.data[:] = 1.0
+            b[-1].bias.data[:] = 0.0
+            c.bias.data[:] = math.log(5 / m.num_classes / (640 / s) ** 2)
+
+    def get_module_info(self):
+        return f"PEDetection", f"[{self.num_classes}, {self.in_channels}, {self.embed}]"
+
+    
+
+class PESegmentation(PEDetection):
+    def __init__(self, num_classes=80, num_masks=32, num_protos=256, embed_dim=512, with_bn=False, in_channels=[]):
+        super().__init__(num_classes, embed_dim, with_bn, in_channels)
+        self.num_masks = num_masks
+        self.num_protos = num_protos
+        self.proto = ProtoMaskModule(in_channels[0], self.num_protos, self.num_masks)
+
+        c5 = max(in_channels[0] // 4, self.num_masks)
+        self.branch4 = nn.ModuleList(nn.Sequential(ConvBNAct(x, c5, 1, 3), ConvBNAct(c5, c5, 1, 3), nn.Conv2d(c5, self.num_masks, 1)) for x in in_channels)
+
+    def forward(self, x: list[torch.Tensor], text: torch.Tensor) -> tuple | torch.Tensor:
+        proto_masks = self.proto(x[0])
+        bs = proto_masks.shape[0]
+
+        mask_coefficients = torch.cat([self.branch4[i](x[i]).view(bs, self.num_masks, -1) for i in range(self.num_det_layers)], 2)
+        has_lrpc = hasattr(self, "lrpc")
+
+        if not has_lrpc:
+            x = PEDetection.forward(self, x, text)
+        else:
+            x, mask = PEDetection.forward(self, x, text, return_mask=True)
+
+        if self.training:
+            return x, mask_coefficients, proto_masks
+        
+        if has_lrpc:
+            mask_coefficients = (mask_coefficients * mask.int()) if self.export and not self.dynamic else mask_coefficients[..., mask]
+        
+        return (torch.cat([x, mask_coefficients], 1), proto_masks) if self.export else (torch.cat([x[0], mask_coefficients], 1), (x[1], mask_coefficients, proto_masks))
+    
+    def get_module_info(self):
+        return f"PESegmentation", f"[{self.num_classes}, {self.num_masks}, {self.num_protos}, {self.in_channels}, {self.embed}]"

@@ -21,7 +21,7 @@ from vajra.utils.torch_utils import (
     )
 from vajra.utils import HYPERPARAMS_DETR_CFG_DICT
 from ..build import RTDETR_DetModel
-from .val import DETRValidator
+from .val import DETRValidator, DETRDataset
 from vajra.models.utils.lr_scheduler import FlatCosineLRScheduler
 
 class DETRTrainer(DetectionTrainer):
@@ -55,7 +55,7 @@ class DETRTrainer(DetectionTrainer):
         )
 
         if ("dfine" or "deim" in self.model.model_name_type):
-            always_freeze_names = ["model.0.decoder.up", "model.0.decoder.reg_scale"]
+            always_freeze_names = ["model.decoder.up", "model.decoder.reg_scale"]
         else:
             always_freeze_names = []
         freeze_layer_names = [f"{x}" for x in freeze_list] + always_freeze_names #[f"model.{x}." for x in freeze_list]
@@ -95,7 +95,7 @@ class DETRTrainer(DetectionTrainer):
         self.train_loader = self.get_dataloader(self.trainset, batch_size=batch_size, rank=RANK, mode="train")
         if RANK in (-1, 0):
             self.test_loader = self.get_dataloader(
-                self.testset, batch_size=batch_size if self.args.task == "obb" else batch_size * 2, rank=-1, mode="val"
+                self.testset, batch_size=batch_size * 2, rank=-1, mode="val"
             )
 
             self.validator = self.get_validator()
@@ -244,7 +244,7 @@ class DETRTrainer(DetectionTrainer):
                     self._setup_scheduler()
                     self.scheduler.last_epoch = self.epoch
                     self.stop |= epoch >= self.epochs
-                self.scheduler.step()
+                #self.scheduler.step()
             self.run_callbacks("on_fit_epoch_end")
             torch.cuda.empty_cache()
 
@@ -271,7 +271,19 @@ class DETRTrainer(DetectionTrainer):
         self.run_callbacks("teardown")
     
     def build_dataset(self, img_path, mode="train", batch=None):
-        return super().build_dataset(img_path, mode, batch)
+        return DETRDataset(
+            img_path = img_path,
+            imgsz = self.args.img_size,
+            batch_size = batch,
+            augment = mode == "train",
+            hyp = self.args,
+            rect=False,
+            cache = self.args.cache or None,
+            prefix = colorstr(f"{mode}: "),
+            data = self.data,
+            classes=self.args.classes,
+            fraction=self.args.fraction if mode == "train" else 1.0,
+        )
     
     def preprocess_batch(self, batch):
         batch = super().preprocess_batch(batch)
@@ -345,5 +357,5 @@ class DETRTrainer(DetectionTrainer):
         return optimizer
     
     def get_validator(self):
-        self.loss_names = self.model.loss_config["losses"]
+        self.loss_names = self.model.loss_config["loss_names"]
         return DETRValidator(self.test_loader, save_dir=self.save_dir, args=copy(self.args))

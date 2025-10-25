@@ -9,8 +9,9 @@ from vajra.checks import check_suffix, check_requirements
 from vajra.utils.downloads import attempt_download_asset
 from vajra.nn.modules import A2C2f, InnerBlock, RepConv, VajraV1MerudandaX, ScalSeq, ADown, SCDown2, RepNCSPELAN4, VajraSPPModule, SCDown, SPPFMLP, AttentionBlockV2, VajraV1MerudandaBhag16, VajraV1MerudandaBhag15, AreaAttentionBlock, SPPFRepViT, VajraStemBlock, VajraV1AttentionBhag7, MLPConv, MerudandaDW, VajraV1MerudandaBhag8, VajraV1MerudandaBhag10, VajraV1MerudandaBhag12, VajraV1AttentionBhag2, VajraStambhV4, VajraV1MerudandaBhag1, VajraV1MerudandaBhag11, VajraV1MerudandaBhag13, SanlayanSPPFAttentionV5, VajraV1AttentionBhag11, SanlayanSPPFAttentionV7, VajraV1AttentionBhag5, VajraV1MerudandaBhag9, VajraV1AttentionBhag3, VajraV1AttentionBhag6, VajraV1AttentionBhag8, VajraV1AttentionBhag10, VajraV1AttentionBhag4, VajraV1MerudandaBhag3, VajraV1MerudandaBhag4, VajraV1MerudandaBhag5, VajraV1MerudandaBhag6, VajraV1AttentionBhag9, VajraV1Attention, VajraV1AttentionBhag1, VajraV1AttentionBhag2, VajraV1Merudanda, VajraV1MerudandaBhag2, Concatenate, SanlayanSPPF, SanlayanSPPFAttention, SanlayanSPPFAttentionV4, Upsample, SPPF, VajraMerudandaBhag3, VajraLiteMerudandaBhag1, VajraV1LiteOuterBlock, VajraGrivaBhag3, VajraMerudandaBhag4, VajraMerudandaBhag5, VajraMerudandaBhag6, VajraGrivaBhag1, VajraGrivaBhag2, VajraStambh, VajraStambhV2, VajraMerudandaBhag2, VajraAttentionBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, DepthwiseConvBNAct, MaxPool, ImagePoolingAttention, AttentionBottleneck, AttentionBottleneckV2, MerudandaDW, RepVGGDW, RepVGGBlock
 from vajra.nn.window_attention import VajraV1SwinTransformerBlockV1, VajraV1SwinTransformerBlockV2, VajraV1SwinTransformerBlockV3, SanlayanSPPFSwinV1, VajraV1SwinTransformerBlockV4
-from vajra.nn.head import Detection, DetectionV2, OBBDetection, Segmentation, Classification, PoseDetection, WorldDetection, Panoptic, DEYODetection
+from vajra.nn.head import Detection, DetectionV2, OBBDetection, Segmentation, Classification, PoseDetection, WorldDetection, Panoptic, DEYODetection, PEDetection, PESegmentation, LRPCHead
 from vajra.nn.vajrav2 import VajraV2ModelNSM, VajraV2ModelLX, VajraV2CLSModel
+from vajra.nn.backend import check_class_names
 from vajra.nn.vajrav3 import VajraV3Model, VajraV3CLSModel
 from vajra.nn.backbones.efficientnets.effnetv2 import build_effnetv2
 from vajra.nn.backbones.efficientnets.effnetv1 import build_effnetv1
@@ -20,7 +21,7 @@ from vajra.nn.backbones.vayuvahana.mixconvnext import build_mixconvnext
 from vajra.nn.backbones.resnets.resnet import build_resnet
 from vajra.nn.backbones.mobilenets.build import build_mobilenet
 from vajra.utils import LOGGER, HYPERPARAMS_CFG_DICT, HYPERPARAMS_CFG_KEYS
-from vajra.utils.torch_utils import model_info, initialize_weights, fuse_conv_and_bn, time_sync, intersect_dicts, scale_img
+from vajra.utils.torch_utils import model_info, initialize_weights, fuse_conv_and_bn, time_sync, intersect_dicts, scale_img, smart_inference_mode
 from vajra.loss import DetectionLoss, VajraDetectionLoss, DEYODetectionLoss, OBBLoss, SegmentationLoss, PoseLoss, ClassificationLoss, PanopticLoss
 
 try:
@@ -78,7 +79,7 @@ class VajraV1ModelN(nn.Module):
                  inner_block_list=[False, False, True, True, False, False, False, True],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 3, 5, 7, 9, 0, [10, 11, 12, 13, 14, -1], -1, [11, 12, 13, 14, -1], -1, -1, [12, 13, 14, -1], -1, -1, [13, 14, -1], -1, -1, [14, -1], -1, -1, -1, -1, [-1, 22], -1, -1, [-1, 32], -1, -1, [-1, 29], -1, -1, [35, 38, 41]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, [-1, 6], -1, -1, [-1, 4], -1, -1, [-1, 12], -1, -1, [-1, 9], -1, [15, 18, 21]]
         # Backbone
         self.stem1 = ConvBNAct(in_channels, 16, 2, 3)
         self.stem2 = ConvBNAct(16, 32, 2, 3)
@@ -150,7 +151,7 @@ class VajraV1ModelS(nn.Module):
                  inner_block_list=[False, False, True, True, False, False, False, True],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 3, 5, 7, 9, 0, [10, 11, 12, 13, 14, -1], -1, [11, 12, 13, 14, -1], -1, -1, [12, 13, 14, -1], -1, -1, [13, 14, -1], -1, -1, [14, -1], -1, -1, -1, -1, [-1, 22], -1, -1, [-1, 32], -1, -1, [-1, 29], -1, -1, [35, 38, 41]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, [-1, 6], -1, -1, [-1, 4], -1, -1, [-1, 12], -1, -1, [-1, 9], -1, [15, 18, 21]]
         # Backbone
         self.stem1 = ConvBNAct(in_channels, 32, 2, 3)
         self.stem2 = ConvBNAct(32, 64, 2, 3)
@@ -222,7 +223,7 @@ class VajraV1ModelM(nn.Module):
                  inner_block_list=[False, False, True, True, False, False, False, True],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 3, 5, 7, 9, 0, [10, 11, 12, 13, 14, -1], -1, [11, 12, 13, 14, -1], -1, -1, [12, 13, 14, -1], -1, -1, [13, 14, -1], -1, -1, [14, -1], -1, -1, -1, -1, [-1, 22], -1, -1, [-1, 32], -1, -1, [-1, 29], -1, -1, [35, 38, 41]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, [-1, 6], -1, -1, [-1, 4], -1, -1, [-1, 12], -1, -1, [-1, 9], -1, [15, 18, 21]]
         # Backbone
         self.stem1 = ConvBNAct(in_channels, channels_list[0], 2, 3)
         self.stem2 = ConvBNAct(channels_list[0], channels_list[1], 2, 3)
@@ -294,7 +295,7 @@ class VajraV1ModelL(nn.Module):
                  inner_block_list=[False, False, True, True, False, False, False, True],
                  ) -> None:
         super().__init__()
-        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 3, 5, 7, 9, 0, [10, 11, 12, 13, 14, -1], -1, [11, 12, 13, 14, -1], -1, -1, [12, 13, 14, -1], -1, -1, [13, 14, -1], -1, -1, [14, -1], -1, -1, -1, -1, [-1, 22], -1, -1, [-1, 32], -1, -1, [-1, 29], -1, -1, [35, 38, 41]]
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, [-1, 6], -1, -1, [-1, 4], -1, -1, [-1, 12], -1, -1, [-1, 9], -1, [15, 18, 21]]
         # Backbone
         self.stem1 = ConvBNAct(in_channels, channels_list[0], 2, 3)
         self.stem2 = ConvBNAct(channels_list[0], channels_list[1], 2, 3)
@@ -694,7 +695,7 @@ class VajraV1WorldModel(nn.Module):
         outputs = [vajra_neck2, vajra_neck3, vajra_neck4]
         return outputs
     
-class VajraV1CLSModelNSM(nn.Module):
+class VajraV1CLSModelN(nn.Module):
     def __init__(self,
                  in_channels=3,
                  channels_list=[64, 128, 256, 512, 1024],
@@ -703,15 +704,16 @@ class VajraV1CLSModelNSM(nn.Module):
         super().__init__()
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
         # Backbone
-        self.stem1 = ConvBNAct(in_channels, channels_list[0], stride=2, kernel_size=3)
-        self.stem2 = ConvBNAct(channels_list[0], channels_list[1], stride=2, kernel_size=3, groups=2)
-        self.vajra_block1 = VajraV1MerudandaBhag6(channels_list[1], channels_list[2], num_repeats[0], kernel_size=1, shortcut=True, expansion_ratio=0.25, inner_block=inner_block_list[0]) # stride 4
-        self.conv1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3, groups=4)
-        self.vajra_block2 = VajraV1MerudandaBhag6(channels_list[2], channels_list[3], num_repeats[1], kernel_size=1, shortcut=True, expansion_ratio=0.25, inner_block=inner_block_list[1]) # stride 8
-        self.conv2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
-        self.attn_blocks_stride16 = VajraV1AttentionBhag1(channels_list[3], channels_list[3], num_blocks=2*num_repeats[2], mlp_ratio=2.0, area=4) # stride 16
-        self.conv3 = ConvBNAct(channels_list[3], channels_list[4], 2, 3)
-        self.attn_blocks_stride32 = VajraV1AttentionBhag1(channels_list[4], channels_list[4], num_blocks=2*num_repeats[3], mlp_ratio=2.0, area=1) # stride 32
+        self.stem1 = ConvBNAct(in_channels, 16, 2, 3)
+        self.stem2 = ConvBNAct(16, 32, 2, 3)
+        self.vajra_block1 = VajraV1MerudandaX(32, 64, 64, 32, 1, True)
+        self.conv1 = ConvBNAct(64, 64, 2, 3)
+        self.vajra_block2 = VajraV1MerudandaX(64, 128, 128, 64, 1, True)
+        self.conv2 = ConvBNAct(128, 128, 2, 3)
+        self.vajra_block3 = VajraV1MerudandaX(128, 128, 128, 64, 1, True) 
+        self.conv3 = ConvBNAct(128, 256, 2, 3)
+        self.vajra_block4 = VajraV1MerudandaX(256, 256, 256, 128, 1, True)
+        self.sppf_attn = VajraV1AttentionBhag6(256, 256, num_blocks=1, mlp_ratio=2.0)
 
     def forward(self, x):
         stem = self.stem2(self.stem1(x))
@@ -721,13 +723,15 @@ class VajraV1CLSModelNSM(nn.Module):
         vajra2 = self.vajra_block2(conv1)
 
         conv2 = self.conv2(vajra2)
-        vajra3 = self.attn_blocks_stride16(conv2)
+        vajra3 = self.vajra_block3(conv2)
 
         conv3 = self.conv3(vajra3)
-        vajra4 = self.attn_blocks_stride32(conv3)
-        return vajra4
+        vajra4 = self.vajra_block4(conv3)
+        sppf_attn = self.sppf_attn(vajra4)
+
+        return sppf_attn
     
-class VajraV1CLSModelLX(nn.Module):
+class VajraV1CLSModelS(nn.Module):
     def __init__(self,
                  in_channels=3,
                  channels_list=[64, 128, 256, 512, 1024],
@@ -736,15 +740,17 @@ class VajraV1CLSModelLX(nn.Module):
         super().__init__()
         self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
         # Backbone
-        self.stem1 = ConvBNAct(in_channels, channels_list[0], stride=2, kernel_size=3)
-        self.stem2 = ConvBNAct(channels_list[0], channels_list[1], stride=2, kernel_size=3, groups=2)
-        self.vajra_block1 = VajraV1MerudandaBhag6(channels_list[1], channels_list[2], num_repeats[0], kernel_size=1, shortcut=True, expansion_ratio=0.25, inner_block=inner_block_list[0]) # stride 4
-        self.conv1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3, groups=4)
-        self.vajra_block2 = VajraV1MerudandaBhag6(channels_list[2], channels_list[3], num_repeats[1], kernel_size=1, shortcut=True, expansion_ratio=0.25, inner_block=inner_block_list[1]) # stride 8
-        self.conv2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
-        self.attn_blocks_stride16 = VajraV1AttentionBhag1(channels_list[3], channels_list[3], num_blocks=2*num_repeats[2], mlp_ratio=1.5, area=4) # stride 16
-        self.conv3 = ConvBNAct(channels_list[3], channels_list[4], 2, 3)
-        self.attn_blocks_stride32 = VajraV1AttentionBhag1(channels_list[4], channels_list[4], num_blocks=2*num_repeats[3], mlp_ratio=1.5, area=1) # stride 32
+        self.stem1 = ConvBNAct(in_channels, 32, 2, 3)
+        self.stem2 = ConvBNAct(32, 64, 2, 3)
+        self.vajra_block1 = VajraV1MerudandaX(64, 128, 128, 64, 1, True)
+        self.conv1 = ConvBNAct(128, 128, 2, 3)
+        self.vajra_block2 = VajraV1MerudandaX(128, 256, 256, 128, 1, True)
+        self.conv2 = ConvBNAct(256, 256, 2, 3)
+        self.vajra_block3 = VajraV1MerudandaX(256, 256, 256, 128, 1, True) 
+        self.conv3 = ConvBNAct(256, 512, 2, 3)
+        self.vajra_block4 = VajraV1MerudandaBhag15(512, 512, 1, True, 0.5, True, 7, True)
+        self.sppf_attn = VajraV1AttentionBhag6(512, 512, num_blocks=1, mlp_ratio=2.0)
+
     def forward(self, x):
         stem = self.stem2(self.stem1(x))
         vajra1 = self.vajra_block1(stem)
@@ -753,11 +759,164 @@ class VajraV1CLSModelLX(nn.Module):
         vajra2 = self.vajra_block2(conv1)
 
         conv2 = self.conv2(vajra2)
-        vajra3 = self.attn_blocks_stride16(conv2)
+        vajra3 = self.vajra_block3(conv2)
 
         conv3 = self.conv3(vajra3)
-        vajra4 = self.attn_blocks_stride32(conv3)
-        return vajra4
+        vajra4 = self.vajra_block4(conv3)
+        sppf_attn = self.sppf_attn(vajra4)
+
+        return sppf_attn
+    
+class VajraV1CLSModelM(nn.Module):
+    def __init__(self,
+                 in_channels=3,
+                 channels_list=[64, 128, 256, 512, 1024],
+                 num_repeats=[2, 2, 2, 2],
+                 inner_block_list=[False, False, True, True, False, False, False, True]) -> None:
+        super().__init__()
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
+        # Backbone
+        self.stem1 = ConvBNAct(in_channels, channels_list[0], 2, 3)
+        self.stem2 = ConvBNAct(channels_list[0], channels_list[1], 2, 3)
+        self.vajra_block1 = VajraV1MerudandaX(channels_list[1], channels_list[2], 128, 64, 1, True)
+        self.conv1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
+        self.vajra_block2 = VajraV1MerudandaX(channels_list[2], channels_list[3], 256, 128, 1, True)
+        self.conv2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3)
+        self.vajra_block3 = VajraV1MerudandaX(channels_list[3], 512, 512, 256, 1, True)
+        self.conv3 = ADown(512, 512)
+        self.vajra_block4 = VajraV1MerudandaBhag15(channels_list[4], channels_list[4], 2, True, 0.5, True, 3, False)
+        self.sppf_attn = VajraV1AttentionBhag6(512, channels_list[4], num_blocks=1, mlp_ratio=2.0)
+
+    def forward(self, x):
+        stem = self.stem2(self.stem1(x))
+        vajra1 = self.vajra_block1(stem)
+
+        conv1 = self.conv1(vajra1)
+        vajra2 = self.vajra_block2(conv1)
+
+        conv2 = self.conv2(vajra2)
+        vajra3 = self.vajra_block3(conv2)
+
+        conv3 = self.conv3(vajra3)
+        vajra4 = self.vajra_block4(conv3)
+        sppf_attn = self.sppf_attn(vajra4)
+
+        return sppf_attn
+    
+class VajraV1CLSModelL(nn.Module):
+    def __init__(self,
+                 in_channels=3,
+                 channels_list=[64, 128, 256, 512, 1024],
+                 num_repeats=[2, 2, 2, 2],
+                 inner_block_list=[False, False, True, True, False, False, False, True]) -> None:
+        super().__init__()
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1]
+        # Backbone
+        self.stem1 = ConvBNAct(in_channels, channels_list[0], 2, 3)
+        self.stem2 = ConvBNAct(channels_list[0], channels_list[1], 2, 3)
+        self.vajra_block1 = VajraV1MerudandaX(channels_list[1], channels_list[2], 128, 64, 2, True)
+        self.conv1 = ConvBNAct(channels_list[2], channels_list[2], 2, 3)
+        self.vajra_block2 = VajraV1MerudandaX(channels_list[2], channels_list[3], 256, 128, 2, True)
+        self.conv2 = ConvBNAct(channels_list[3], channels_list[3], 2, 3) #ADown(channels_list[3], channels_list[3])
+        self.vajra_block3 = VajraV1MerudandaX(channels_list[3], 512, 512, 256, 2, True) 
+        self.conv3 = ADown(512, 512)
+        self.vajra_block4 = VajraV1MerudandaBhag15(channels_list[4], channels_list[4], 3, True, 0.5, True, 3, False) #VajraV1MerudandaX(512, 512, 512, 256, 2, True)
+        self.sppf_attn = VajraV1AttentionBhag6(512, channels_list[4], num_blocks=2, mlp_ratio=2.0)
+    
+    def forward(self, x):
+        stem = self.stem2(self.stem1(x))
+        vajra1 = self.vajra_block1(stem)
+
+        conv1 = self.conv1(vajra1)
+        vajra2 = self.vajra_block2(conv1)
+
+        conv2 = self.conv2(vajra2)
+        vajra3 = self.vajra_block3(conv2)
+
+        conv3 = self.conv3(vajra3)
+        vajra4 = self.vajra_block4(conv3)
+        sppf_attn = self.sppf_attn(vajra4)
+
+        return sppf_attn
+    
+class VajraV1CLSModelX(nn.Module):
+    def __init__(self,
+                 in_channels=3,
+                 channels_list=[64, 128, 256, 512, 1024],
+                 num_repeats=[2, 2, 2, 2],
+                 inner_block_list=[False, False, True, True, False, False, False, True]) -> None:
+        super().__init__()
+        self.from_list = [-1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 3, 5, 7, 9, 0, [10, 11, 12, 13, 14, -1], -1, [11, 12, 13, 14, -1], -1, -1, [12, 13, 14, -1], -1, -1, [13, 14, -1], -1, -1, [14, -1], -1, -1]
+        # Backbone
+        self.stem1 = ConvBNAct(in_channels, channels_list[0], 2, 3)
+        self.stem2 = ConvBNAct(channels_list[0], channels_list[1], 2, 3)
+        self.vajra_block1 = VajraV1MerudandaX(channels_list[1], channels_list[2], 128, 64, 2, True)
+        self.conv1 = ADown(channels_list[2], channels_list[2])
+        self.vajra_block2 = VajraV1MerudandaX(channels_list[2], channels_list[3], 256, 128, 2, True)
+        self.conv2 = ADown(channels_list[3], channels_list[3])
+        self.vajra_block3 = VajraV1MerudandaX(channels_list[3], 1024, 512, 256, 2, True) 
+        self.conv3 = ADown(1024, 1024)
+        self.vajra_block4 = VajraV1MerudandaX(1024, 1024, 512, 256, 2, True)
+        
+        self.cblinear1 = CBLinear(c1= 64, c2s=[64])
+        self.cblinear2 = CBLinear(c1= 256, c2s=[64, 128])
+        self.cblinear3 = CBLinear(c1 = 512, c2s=[64, 128, 256])
+        self.cblinear4 = CBLinear(c1 = 1024, c2s=[64, 128, 256, 512])
+        self.cblinear5 = CBLinear(c1 = 1024, c2s=[64, 128, 256, 512, 1024])
+
+        self.conv4 = ConvBNAct(in_channels, channels_list[0], 2, 3)
+        self.cbfuse1 = CBFuse([0, 0, 0, 0, 0])
+        self.conv5 = ConvBNAct(channels_list[0], channels_list[1], 2, 3)
+        self.cbfuse2 = CBFuse([1, 1, 1, 1])
+        self.vajra_block5 = VajraV1MerudandaX(channels_list[1], channels_list[2], 128, 64, 2, True)
+        self.conv6 = ADown(channels_list[2], channels_list[2])
+        self.cbfuse3 = CBFuse([2, 2, 2])
+        self.vajra_block6 = VajraV1MerudandaX(channels_list[2], channels_list[3], 256, 128, 2, True)
+        self.conv7 = ADown(channels_list[3], channels_list[3])
+        self.cbfuse4 = CBFuse([3, 3])
+        self.vajra_block7 = VajraV1MerudandaX(channels_list[3], 1024, 512, 256, 2, True)
+        self.conv8 = ADown(1024, 1024)
+        self.cbfuse5 = CBFuse([4])
+        self.vajra_block8 = VajraV1MerudandaX(1024, 1024, 512, 256, 2, True)
+        self.sppf_attn = VajraV1AttentionBhag6(1024, channels_list[4], num_blocks=2, mlp_ratio=2.0)
+
+    def forward(self, x):
+        stem1 = self.stem1(x)
+        stem2 = self.stem2(stem1)
+        vajra1 = self.vajra_block1(stem2)
+
+        conv1 = self.conv1(vajra1)
+        vajra2 = self.vajra_block2(conv1)
+
+        conv2 = self.conv2(vajra2)
+        vajra3 = self.vajra_block3(conv2)
+
+        conv3 = self.conv3(vajra3)
+        vajra4 = self.vajra_block4(conv3)
+
+        cblinear1 = self.cblinear1(stem1)
+        cblinear2 = self.cblinear2(vajra1)
+        cblinear3 = self.cblinear3(vajra2)
+        cblinear4 = self.cblinear4(vajra3)
+        cblinear5 = self.cblinear5(vajra4)
+
+        conv4 = self.conv4(x)
+        cbfuse1 = self.cbfuse1([cblinear1, cblinear2, cblinear3, cblinear4, cblinear5, conv4])
+        conv5 = self.conv5(cbfuse1)
+        cbfuse2 = self.cbfuse2([cblinear2, cblinear3, cblinear4, cblinear5, conv5])
+        vajra5 = self.vajra_block5(cbfuse2)
+        conv6 = self.conv6(vajra5)
+        cbfuse3 = self.cbfuse3([cblinear3, cblinear4, cblinear5, conv6])
+        vajra6 = self.vajra_block6(cbfuse3)
+        conv7 = self.conv7(vajra6)
+        cbfuse4 = self.cbfuse4([cblinear4, cblinear5, conv7])
+        vajra7 = self.vajra_block7(cbfuse4)
+        conv8 = self.conv8(vajra7)
+        cbfuse5 = self.cbfuse5([cblinear5, conv8])
+        vajra8 = self.vajra_block8(cbfuse5)
+        sppf_attn = self.sppf_attn(vajra8)
+
+        return sppf_attn
 
 def make_divisible(x, divisor):
     if isinstance(divisor, torch.Tensor):
@@ -818,8 +977,6 @@ def build_vajra(in_channels,
             #num_repeats = [2, 2, 2, 2, 2, 2, 2, 2, 2, 2] if task != "classify" else [2, 2, 2, 2]
             #channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 128, 256, 128, 256, 256, 256, 256] if task != "classify" else [64, 128, 256, 512, 1024]
  
-    vajra_deyo_channels_list = [64, 128, 256, 512, 1024, 256, 256, 256, 256, 256, 256, 256, 256]
-
     #if version != "v2":
     inner_blocks_config = {
             "nano": [False, False, True, True, True, True, True, True],
@@ -862,7 +1019,6 @@ def build_vajra(in_channels,
 
     channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in channels_list]
     expand_channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in expand_channels_list] if "lite" in model_name else []
-    vajra_deyo_channels_list = [make_divisible(min(ch, max_channels) * width_mul, 8) for ch in vajra_deyo_channels_list]
     num_repeats = [(max(round(n * backbone_depth_mul), 1) if n > 1 else n) for n in num_repeats[:4]] + [(max(round(n * neck_depth_mul), 1) if n > 1 else n) for n in num_repeats[4:]]
 
     embed_channels = [256, 128, 256, 512]
@@ -877,44 +1033,40 @@ def build_vajra(in_channels,
                     model = VajraV1LiteModel(in_channels, channels_list, expand_channels_list, num_repeats, inner_blocks_list)
                 else:
                     if size == "nano":
-                        model = VajraV1ModelN(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
+                        model = VajraV1ModelN(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
                     elif size == "small":
-                        model = VajraV1ModelS(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
+                        model = VajraV1ModelS(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
                     elif size == "medium":
-                        model = VajraV1ModelM(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
+                        model = VajraV1ModelM(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
                     elif size == "large":
-                        model = VajraV1ModelL(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
+                        model = VajraV1ModelL(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
                     else:
-                        model = VajraV1ModelX(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
+                        model = VajraV1ModelX(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV1DEYOModel(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
             elif version == "v2":
                 if size in ["nano", "small", "medium"]:
-                    model = VajraV2ModelNSM(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV2ModelNSM(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
+                    model = VajraV2ModelNSM(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV2ModelNSM(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
                 else:
-                    model = VajraV2ModelLX(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV2ModelLX(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
+                    model = VajraV2ModelLX(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV2ModelLX(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
             elif version == "v3":
-                model = VajraV3Model(in_channels, channels_list, num_repeats, inner_blocks_list) if model_name.split("-")[1] != "deyo" else VajraV3Model(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
+                model = VajraV3Model(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV3Model(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
 
-            if model_name.split("-")[1] != "deyo":
-                if version == "v1":
-                    head_channels = [channels_list[8], channels_list[10], channels_list[12]] if size != "xlarge" else [256, 512, 512]
-                elif version == "v2":
-                    head_channels = [channels_list[8], channels_list[10], channels_list[12]] #[channels_list[10], channels_list[12], channels_list[14], channels_list[16]]
-                elif version == "v3":
-                    head_channels = [channels_list[4] // 2, int(0.75 * channels_list[4]), channels_list[4], channels_list[4]]
-            else: 
-                head_channels = [vajra_deyo_channels_list[8], vajra_deyo_channels_list[10], vajra_deyo_channels_list[12]]
+            if version == "v1":
+                head_channels = [channels_list[8], channels_list[10], channels_list[12]] if size != "xlarge" else [256, 512, 512]
+            elif version == "v2":
+                head_channels = [channels_list[8], channels_list[10], channels_list[12]] #[channels_list[10], channels_list[12], channels_list[14], channels_list[16]]
+            elif version == "v3":
+                head_channels = [channels_list[4] // 2, int(0.75 * channels_list[4]), channels_list[4], channels_list[4]]
 
             if task == "detect":
-                if model_name.split("-")[1] == "deyo":
-                    head = DEYODetection(num_classes=num_classes, in_channels=head_channels)
-                #elif version == "v2":
-                    #head = DetectionV2(num_classes, head_channels)
+                if model_name.split("-")[0][-1] == "e":
+                    head = PEDetection(num_classes, in_channels=head_channels, embed_dim=512, with_bn=True)
                 else:
                     head = Detection(num_classes, head_channels)
-                    #if size == "xlarge":
-                        #head.legacy = True
             elif task == "segment":
-                head = Segmentation(num_classes, in_channels=head_channels, num_protos=num_protos)
+                if model_name.split("-")[0][-1] == "e":
+                    head = PESegmentation(num_classes, in_channels=head_channels, num_protos=num_protos, embed_dim=512, with_bn=True)
+                else:
+                    head = Segmentation(num_classes, in_channels=head_channels, num_protos=num_protos)
             elif task == "pose":
                 head = PoseDetection(num_classes, in_channels=head_channels, keypoint_shape=kpt_shape if any(kpt_shape) else (17, 3))
             elif task == "small_obj_detect":
@@ -969,10 +1121,16 @@ def build_vajra(in_channels,
 
     else:
         if version == "v1":
-            if size in ["nano", "small", "medium"]:
-                model = VajraV1CLSModelNSM(in_channels=3, channels_list=channels_list, num_repeats=num_repeats, inner_block_list=inner_blocks_backbone_list)
-            else:
-                model = VajraV1CLSModelLX(in_channels=3, channels_list=channels_list, num_repeats=num_repeats, inner_block_list=inner_blocks_backbone_list)
+            if size == "nano":
+                model = VajraV1CLSModelN(in_channels=3, channels_list=channels_list, num_repeats=num_repeats, inner_block_list=inner_blocks_backbone_list)
+            elif size == "small":
+                model = VajraV1CLSModelS(in_channels=3, channels_list=channels_list, num_repeats=num_repeats, inner_block_list=inner_blocks_backbone_list)
+            elif size == "medium":
+                model = VajraV1CLSModelM(in_channels=3, channels_list=channels_list, num_repeats=num_repeats, inner_block_list=inner_blocks_backbone_list)
+            elif size == "large":
+                model = VajraV1CLSModelL(in_channels=3, channels_list=channels_list, num_repeats=num_repeats, inner_block_list=inner_blocks_backbone_list)
+            elif size == "xlarge":
+                model = VajraV1CLSModelX(in_channels=3, channels_list=channels_list, num_repeats=num_repeats, inner_block_list=inner_blocks_backbone_list)
         elif version == "v2":    
             model = VajraV2CLSModel(in_channels=3, channels_list=channels_list, num_repeats=num_repeats, inner_block_list=inner_blocks_backbone_list)
         elif version == "v3":
@@ -1322,6 +1480,140 @@ class VajraWorld(DetectionModel):
             preds = self.forward(batch["img"], txt_feats=batch["txt_feats"])
         return self.criterion(preds, batch)
 
+class VajraEModel(DetectionModel):
+    def __init__(self, model_name='vajrae-v1-small-det', channels=3, num_classes=None, verbose=True):
+        super().__init__(model_name, channels, num_classes, verbose)
+
+    @smart_inference_mode()
+    def get_text_pe(self, text, batch=80, cache_clip_model=False, without_reprta=False):
+        from vajra.nn.text_model import build_text_model
+
+        device = next(self.model.parameters()).device
+        if not getattr(self, "clip_model", None) and cache_clip_model:
+            self.clip_model = build_text_model("mobileclip:blt", device=device)
+        
+        model = self.clip_model if cache_clip_model else build_text_model("mobileclip:blt", device=device)
+        text_token = model.tokenize(text)
+        txt_feats = [model.encode_text(token).detach() for token in text_token.split(batch)]
+        txt_feats = txt_feats[0] if len(txt_feats) == 1 else torch.cat(txt_feats, dim=0)
+        if without_reprta:
+            return txt_feats
+        
+        head = self.model[-1]
+        assert isinstance(head, PEDetection)
+        return head.get_tpe(txt_feats)
+    
+    @smart_inference_mode()
+    def get_visual_pe(self, img, visual):
+        return self(img, vpe=visual, return_vpe=True)
+    
+    def set_vocab(self, vocab, names):
+        assert not self.training
+        head = self.model[-1]
+        assert isinstance(head, PEDetection)
+
+        device = next(self.parameters()).device
+        self(torch.empty(1, 3, self.args["img_size"], self.args["img_size"]).to(device))
+
+        self.model[-1].lrpc = nn.ModuleList(
+            LRPCHead(cls, pf[-1], loc[-1], enabled=i != 2)
+            for i, (cls, pf, loc) in enumerate(zip(vocab, head.branch_cls, head.branch_det))
+        )
+        for loc_head, cls_head in zip(head.branch_det, head.branch_cls):
+            assert isinstance(loc_head, nn.Sequential)
+            assert isinstance(cls_head, nn.Sequential)
+            del loc_head[-1]
+            del cls_head[-1]
+        self.model[-1].num_classes = len(names)
+        self.names = check_class_names(names)
+
+    def get_vocab(self, names):
+        assert not self.training
+        head = self.model[-1]
+        assert isinstance(head, PEDetection)
+        assert not head.is_fused
+
+        tpe = self.get_text_pe(names)
+        self.set_classes(names, tpe)
+        device = next(self.model.parameters()).device
+        head.fuse(self.pe.to(device))
+
+        vocab = nn.ModuleList()
+        for cls_head in head.branch_cls:
+            assert isinstance(cls_head, nn.Sequential)
+            vocab.append(cls_head[-1])
+        return vocab
+    
+    def set_classes(self, names, embeddings):
+        assert not hasattr(self.model[-1], "lrpc"), (
+            "Prompt-free model does not support setting classes. Please try with Text/Visual prompt models."
+        )
+        assert embeddings.ndim == 3
+        self.pe = embeddings
+        self.model[-1].num_classes = len(names)
+        self.names = check_class_names(names)
+    
+    def get_cls_pe(self, tpe, vpe):
+        all_pe = []
+        if tpe is not None:
+            assert tpe.ndim == 3
+            all_pe.append(tpe)
+        if vpe is not None:
+            assert vpe.ndim == 3
+            all_pe.append(vpe)
+        if not all_pe:
+            all_pe.append(getattr(self, "pe", torch.zeros(1, 80, 512)))
+        return torch.cat(all_pe, dim=1)
+    
+    def predict(self, x, profile=False, visualize=False, tpe=None, augment=False, embed=None, vpe=None, return_vpe=False):
+        y, dt, embeddings = [], [], []
+        b = x.shape[0]
+        embed = frozenset(embed) if embed is not None else {-1}
+        max_idx = max(embed)
+        for layer in self.model:
+            if profile:
+                self._profile_one_layer(layer, x, dt)
+            if isinstance(layer, PEDetection):
+                vpe = layer.get_vpe(x, vpe) if vpe is not None else None
+                if return_vpe:
+                    assert vpe is not None
+                    assert not self.training
+                    return vpe
+                cls_pe = self.get_cls_pe(layer.get_tpe(tpe), vpe).to(device=x[0].device, dtype=x[0].dtype)
+                if cls_pe.shape[0] != b or layer.export:
+                    cls_pe = cls_pe.expand(b, -1, -1)
+                x = layer(x, cls_pe)
+            else:
+                x = layer(x)
+            #if visualize:
+                #feature_visualization()
+        return x
+    
+    def loss(self, batch, preds=None):
+        if not hasattr(self, "criterion"):
+            from vajra.loss import TVPDetectionLoss
+            visual_prompt = batch.get("visuals", None) is not None
+            self.criterion = TVPDetectionLoss(self) if visual_prompt else self.init_criterion()
+        
+        if preds is None:
+            preds = self.forward(batch["img"], tpe=batch.get("txt_feats", None), vpe=batch.get("visuals", None))
+        return self.criterion(preds, batch)
+    
+class VajraESegmentationModel(VajraEModel, SegmentationModel):
+    def __init__(self, model_name='vajrae-v1-small-seg', channels=3, num_classes=None, verbose=True):
+        super().__init__(model_name, channels, num_classes, verbose)
+    
+    def loss(self, batch, preds=None):
+        if not hasattr(self, "criterion"):
+            from vajra.loss import TVPSegmentationLoss
+
+            visual_prompt = batch.get("visuals", None) is not None
+            self.criterion = TVPSegmentationLoss(self) if visual_prompt else self.init_criterion()
+        
+        if preds is None:
+            preds = self.forward(batch["img"], tpe=batch.get("txt_feats", None), vpe=batch.get("visuals", None))
+        return self.criterion(preds, batch)
+
 def torch_safe_load(weight):
     from vajra.utils.downloads import attempt_download_vajra, attempt_download_asset
     check_suffix(file=weight, suffix=".pt")
@@ -1398,9 +1690,9 @@ def load_ensemble_weights(weights, device = None, inplace = True, fuse = False):
 def get_task(model):
     if isinstance(model, nn.Module):
         for module in model.modules():
-            if isinstance(module, Detection):
+            if isinstance(module, (Detection, PEDetection)):
                 return "detect"
-            elif isinstance(module, Segmentation):
+            elif isinstance(module, (Segmentation, PESegmentation)):
                 return "segment"
             elif isinstance(module, Classification):
                 return "classify"

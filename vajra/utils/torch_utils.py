@@ -504,6 +504,15 @@ def get_flops(model, img_size=640):
             return thop.profile(deepcopy(model), inputs=[im], verbose=False)[0] / 1e9 * 2
     except Exception:
         return 0.0
+    
+def unwrap_model(m: nn.Module) -> nn.Module:
+    while True:
+        if hasattr(m, "_orig_mod") and isinstance(m._orig_mod, nn.Module):
+            m = m._orig_mod
+        elif hasattr(m, "module") and isinstance(m.module, nn.Module):
+            m = m.module
+        else:
+            return m
 
 def model_info(model, detailed=False, verbose=True, imgsz=640):
     """

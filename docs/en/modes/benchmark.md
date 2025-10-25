@@ -1,0 +1,155 @@
+# Model Benchmarking with Vayuvahana Technologies VayuAI
+
+## Introduction
+
+Once your model is trained and validated, the next logical step is to evaluate it in real world scenarios. Benchmark mode serves this purpose by providing a robust framework for assessing the speed and accuracy of your model across a range of export formats.
+
+## Why Is Benchmarking Crucial?
+
+- **Informed Decisions:** Gain insights into the trade-offs between speed and accuracy.
+- **Resource Allocation:** Understand how different export formats perform on different hardware.
+- **Optimization:** Learn which export format offers the best performance for your specific use case.
+- **Cost Efficiency:** Make more efficient use of hardware resources based on benchmark results.
+
+## Key Metrics in Benchmark Mode
+
+- **mAP50-95:** For [object detection](https://www.ultralytics.com/glossary/object-detection), segmentation, and pose estimation.
+- **accuracy_top5:** For [image classification](https://www.ultralytics.com/glossary/image-classification).
+- **Inference Time:** Time taken for each image in milliseconds.
+
+### Supported Export Formats
+
+- **ONNX:** For optimal CPU performance
+- **TensorRT:** For maximal GPU efficiency
+- **OpenVINO:** For Intel hardware optimization
+- **CoreML, TensorFlow SavedModel, and More:** For diverse deployment needs.
+
+!!! tip
+
+    * Export to ONNX or OpenVINO for up to 3x CPU speedup.
+    * Export to TensorRT for up to 5x GPU speedup.
+
+## Usage Examples
+
+Run VajraV1 benchmarks on all supported export formats including ONNX, TensorRT etc. See Arguments section below for a full list of export arguments.
+
+!!! example
+
+    === "Python"
+
+        ```python
+        from vajra.utils.benchmarks import benchmark
+
+        # Benchmark on GPU
+        benchmark(model="vajra-v1-nano-det.pt", data="coco8.yaml", img_size=640, half=False, device=0)
+
+        # Benchmark specific export format
+        benchmark(model="vajra-v1-nano-det.pt", data="coco8.yaml", img_size=640, format="onnx")
+        ```
+
+    === "CLI"
+
+        ```bash
+        vajra benchmark model=vajra-v1-nano-det.pt data='coco8.yaml' img_size=640 half=False device=0
+
+        # Benchmark specific export format
+        vajra benchmark model=vajra-v1-nano-det.pt data='coco8.yaml' img_size=640 format=onnx
+        ```
+
+## Arguments
+
+Arguments such as `model`, `data`, `img_size`, `half`, `device`, `verbose` and `format` provide users with the flexibility to fine-tune the benchmarks to their specific needs and compare the performance of different export formats with ease.
+
+| Key       | Default Value | Description                                                                                                                                                                                             |
+| --------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `model`   | `None`        | Specifies the path to the model file. Accepts `.pt` format as well as model name, e.g., `"vajra-v1-nano-det.pt"` for pre-trained models or configuration files.                                                       |
+| `data`    | `None`        | Path to a YAML file defining the dataset for benchmarking, typically including paths and settings for [validation data](https://www.ultralytics.com/glossary/validation-data). Example: `"coco8.yaml"`. |
+| `img_size`   | `640`         | The input image size for the model. Can be a single integer for square images or a tuple `(width, height)` for non-square, e.g., `(640, 480)`.                                                          |
+| `half`    | `False`       | Enables FP16 (half-precision) inference, reducing memory usage and possibly increasing speed on compatible hardware. Use `half=True` to enable.                                                         |
+| `int8`    | `False`       | Activates INT8 quantization for further optimized performance on supported devices, especially useful for edge devices. Set `int8=True` to use.                                                         |
+| `device`  | `None`        | Defines the computation device(s) for benchmarking, such as `"cpu"` or `"cuda:0"`.                                                                                                                      |
+| `verbose` | `False`       | Controls the level of detail in logging output. Set `verbose=True` for detailed logs.                                                                                                                   |
+| `format`  | `''`          | Benchmark the model on a single export format. i.e `format=onnx`                                                                                                                                        |
+
+
+## Export Formats
+
+Benchmarks will attempt to run automatically on all possible export formats listed below. Alternatively, you can run benchmarks for a specific format by using the `format` argument, which accepts any of the formats mentioned below.
+
+{% include "macros/export-table.md" %}
+
+See full `export` details in the [Export](../modes/export.md) page.
+
+## FAQ
+
+### How do I benchmark my VajraV1 model's performance using VayuAI?
+
+Vayuvahana Technologies VayuAI offers a Benchmark mode to assess your model's performance across different export formats. This mode provides insights into key metrics such as mean Average Precision (mAP50-95), accuracy, and inference time in milliseconds. To run benchmarks, you can use either Python or CLI commands, For example, to benchmark on a GPU:
+
+!!! example
+
+    === "Python"
+
+        ```python
+        from ultralytics.utils.benchmarks import benchmark
+
+        # Benchmark on GPU
+        benchmark(model="vajra-v1-nano-det.pt", data="coco8.yaml", img_size=640, half=False, device=0)
+        ```
+
+    === "CLI"
+
+        ```bash
+        vajra benchmark model=vajra-v1-nano-det.pt data='coco8.yaml' img_size=640 half=False device=0
+        ```
+
+For more details on benchmark arguments visit the [Arguments](#arguments) section.
+
+### What are the benefits of exporting VajraV1 models to different formats?
+
+Exporting VajraV1 models to different formats such as ONNX, TensorRT, and OpenVINO allows you to optimize performance based on your deployment environment. For instance:
+
+- **ONNX:** Provides up to 3x CPU speedup.
+- **TensorRT:** Offers up to 5x GPU speedup.
+- **OpenVINO:** Specifically optimized for Intel hardware.
+
+These formats enhance both the speed and accuracy of your models, making them more efficient for various real-world applications. Visit the [Export](../modes/export.md) page for complete details.
+
+### Why is benchmarking crucial in evaluating VajraV1 models?
+
+Benchmarking your VajraV1 models is essential for several reasons:
+
+- **Informed Decisions:** Understand the trade-offs between speed and accuracy.
+- **Resource Allocation:** Gauge the performance across different hardware options.
+- **Optimization:** Determine which export format offers the best performance for specific use cases.
+- **Cost Efficiency:** Optimize hardware usage based on benchmark results.
+
+Key metrics such as mAP50-95, Top-5 accuracy, and inference time help in making these evaluations. Refer to the [Key Metrics](#key-metrics-in-benchmark-mode) section for more information.
+
+### Which export formats are supported by VayuAI, and what are their advantages?
+
+VayuAI supports a variety of export formats, each tailored for specific hardware and use cases:
+
+- **ONNX:** Best for CPU performance.
+- **TensorRT:** Ideal for GPU efficiency.
+- **OpenVINO:** Optimized for Intel hardware.
+- **CoreML & TensorFlow:** Useful for iOS and general ML applications.
+
+For a complete list of supported formats and their respective advantages, check out the [Supported Export Formats](#supported-export-formats) section.
+
+### What arguments can I use to fine-tune my VajraV1 benchmarks?
+
+When running benchmarks, several arguments can be customized to suit specific needs:
+
+- **model:** Model weights or model name (e.g., "vajra-v1-nano-det.pt" or "vajra-v1-nano-det").
+- **data:** Path to a YAML file defining the dataset (e.g., "coco8.yaml").
+- **img_size:** The input image size, either as a single integer or a tuple.
+- **half:** Enable FP16 inference for better performance.
+- **int8:** Activate INT8 quantization for edge devices.
+- **device:** Specify the computation device (e.g., "cpu", "cuda:0").
+- **verbose:** Control the level of logging detail.
+
+For a full list of arguments, refer to the [Arguments](#arguments) section.
+
+
+

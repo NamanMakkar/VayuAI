@@ -152,6 +152,39 @@ class Annotator:
 
         self.limb_color = colors.pose_palette[[9, 9, 9, 9, 7, 7, 7, 0, 0, 0, 0, 0, 16, 16, 16, 16, 16, 16, 16]]
         self.kpt_color = colors.pose_palette[[16, 16, 16, 16, 16, 0, 0, 0, 0, 0, 0, 9, 9, 9, 9, 9, 9]]
+
+        self.dark_colors = {
+            (235, 219, 11),
+            (243, 243, 243),
+            (183, 223, 0),
+            (221, 111, 255),
+            (0, 237, 204),
+            (68, 243, 0),
+            (255, 255, 0),
+            (179, 255, 1),
+            (11, 255, 162),
+        }
+        self.light_colors = {
+            (255, 42, 4),
+            (79, 68, 255),
+            (255, 0, 189),
+            (255, 180, 0),
+            (186, 0, 221),
+            (0, 192, 38),
+            (255, 36, 125),
+            (104, 0, 123),
+            (108, 27, 255),
+            (47, 109, 252),
+            (104, 31, 17),
+        }
+
+    def get_txt_color(self, color = (128, 128, 128), txt_color = (255, 255, 255)):
+        if color in self.dark_colors:
+            return 104, 31, 17
+        elif color in self.light_colors:
+            return 255, 255, 255
+        else:
+            return txt_color
     
     def box_label(self, box, label="", color=(128, 128, 128), txt_color=(255, 255, 255), rotated=False):
         """Add one xyxy box to image with label."""
@@ -1006,23 +1039,24 @@ def feature_visualization(x, module_type, stage, n=32, save_dir=Path("runs/detec
         n (int, optional): Maximum number of feature maps to plot. Defaults to 32.
         save_dir (Path, optional): Directory to save results. Defaults to Path('runs/detect/exp').
     """
-    for m in ["Detect", "Pose", "Segment"]:
+    for m in {"Detection", "PoseDetection", "Segmentation", "Classification", "OBBDetection"}:
         if m in module_type:
             return
-    _, channels, height, width = x.shape  # batch, channels, height, width
-    if height > 1 and width > 1:
-        f = save_dir / f"stage{stage}_{module_type.split('.')[-1]}_features.png"  # filename
+    if isinstance(x, torch.Tensor):
+        _, channels, height, width = x.shape  # batch, channels, height, width
+        if height > 1 and width > 1:
+            f = save_dir / f"stage{stage}_{module_type.split('.')[-1]}_features.png"  # filename
 
-        blocks = torch.chunk(x[0].cpu(), channels, dim=0)  # select batch index 0, block by channels
-        n = min(n, channels)  # number of plots
-        _, ax = plt.subplots(math.ceil(n / 8), 8, tight_layout=True)  # 8 rows x n/8 cols
-        ax = ax.ravel()
-        plt.subplots_adjust(wspace=0.05, hspace=0.05)
-        for i in range(n):
-            ax[i].imshow(blocks[i].squeeze())  # cmap='gray'
-            ax[i].axis("off")
+            blocks = torch.chunk(x[0].cpu(), channels, dim=0)  # select batch index 0, block by channels
+            n = min(n, channels)  # number of plots
+            _, ax = plt.subplots(math.ceil(n / 8), 8, tight_layout=True)  # 8 rows x n/8 cols
+            ax = ax.ravel()
+            plt.subplots_adjust(wspace=0.05, hspace=0.05)
+            for i in range(n):
+                ax[i].imshow(blocks[i].squeeze())  # cmap='gray'
+                ax[i].axis("off")
 
-        LOGGER.info(f"Saving {f}... ({n}/{channels})")
-        plt.savefig(f, dpi=300, bbox_inches="tight")
-        plt.close()
-        np.save(str(f.with_suffix(".npy")), x[0].cpu().numpy())  # npy save
+            LOGGER.info(f"Saving {f}... ({n}/{channels})")
+            plt.savefig(f, dpi=300, bbox_inches="tight")
+            plt.close()
+            np.save(str(f.with_suffix(".npy")), x[0].cpu().numpy())  # npy save
