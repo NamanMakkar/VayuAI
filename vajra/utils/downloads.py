@@ -374,6 +374,8 @@ def attempt_download_asset(file, repo='NamanMakkar/VayuAI', release='v1.0.1', **
                 release = GITHUB_ASSETS_DICT["sam"]["version"]
             elif "clip" in name:
                 release = GITHUB_ASSETS_DICT["clip"]["version"]
+            elif "obb" in name:
+                release = GITHUB_ASSETS_DICT["obb_dotav1"]["version"]
             else:
                 release = GITHUB_ASSETS_DICT["coco"]["version"]
             safe_download(url=f"{download_url}/{release}/{name}", file=file, min_bytes=1e5, **kwargs)
