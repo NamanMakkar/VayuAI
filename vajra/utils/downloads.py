@@ -19,6 +19,7 @@ REPO = "NamanMakkar/VayuAI"
 GITHUB_ASSETS_NAMES = (
     [f'visdrone-best-vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')]
     + [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')] + [f'vajra-v1-{k}-seg.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')] + [f'vajra-v1-{k}-pose.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')]
+    + [f'vajra-v1-{k}-obb.pt' for k in ('nano', 'small', 'medium')] + [f'sam2_{k}.pt' for k in "blst"] + [f"sam_{k}" for k in "bl"] + ["mobile_sam.pt"] + [f"FastSAM-{k}.pt" for k in "sx"] + ["mobileclip_blt.pt"]
 )
 
 GITHUB_ASSETS_DICT = {
