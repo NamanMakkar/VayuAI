@@ -13,8 +13,8 @@ Once your model is trained and validated, the next logical step is to evaluate i
 
 ## Key Metrics in Benchmark Mode
 
-- **mAP50-95:** For [object detection](https://www.ultralytics.com/glossary/object-detection), segmentation, and pose estimation.
-- **accuracy_top5:** For [image classification](https://www.ultralytics.com/glossary/image-classification).
+- **mAP50-95:** For object detection, segmentation, and pose estimation.
+- **accuracy_top5:** For image classification.
 - **Inference Time:** Time taken for each image in milliseconds.
 
 ### Supported Export Formats
@@ -63,7 +63,7 @@ Arguments such as `model`, `data`, `img_size`, `half`, `device`, `verbose` and `
 | Key       | Default Value | Description                                                                                                                                                                                             |
 | --------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `model`   | `None`        | Specifies the path to the model file. Accepts `.pt` format as well as model name, e.g., `"vajra-v1-nano-det.pt"` for pre-trained models or configuration files.                                                       |
-| `data`    | `None`        | Path to a YAML file defining the dataset for benchmarking, typically including paths and settings for [validation data](https://www.ultralytics.com/glossary/validation-data). Example: `"coco8.yaml"`. |
+| `data`    | `None`        | Path to a YAML file defining the dataset for benchmarking, typically including paths and settings for validation data. Example: `"coco8.yaml"`. |
 | `img_size`   | `640`         | The input image size for the model. Can be a single integer for square images or a tuple `(width, height)` for non-square, e.g., `(640, 480)`.                                                          |
 | `half`    | `False`       | Enables FP16 (half-precision) inference, reducing memory usage and possibly increasing speed on compatible hardware. Use `half=True` to enable.                                                         |
 | `int8`    | `False`       | Activates INT8 quantization for further optimized performance on supported devices, especially useful for edge devices. Set `int8=True` to use.                                                         |
@@ -91,7 +91,7 @@ Vayuvahana Technologies VayuAI offers a Benchmark mode to assess your model's pe
     === "Python"
 
         ```python
-        from ultralytics.utils.benchmarks import benchmark
+        from vajra.utils.benchmarks import benchmark
 
         # Benchmark on GPU
         benchmark(model="vajra-v1-nano-det.pt", data="coco8.yaml", img_size=640, half=False, device=0)

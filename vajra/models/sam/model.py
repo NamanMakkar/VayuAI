@@ -18,7 +18,7 @@ class SAM(Model):
         self.model = build_sam(weights)
 
     def predict(self, source, stream = False, bboxes=None, points=None, labels=None, **kwargs):
-        model_configuration = dict(conf=0.25, task="segment", mode="predict", imgsz=1024)
+        model_configuration = dict(conf=0.25, task="segment", mode="predict", img_size=1024)
         kwargs = {**model_configuration, **kwargs}
         prompts = dict(bboxes=bboxes, points=points, labels=labels)
         return super().predict(source, stream, prompts=prompts, **kwargs)

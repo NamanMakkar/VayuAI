@@ -1,0 +1,22 @@
+path: ../data/sardet100k
+train: images/train
+val: images/val
+test: #optional
+
+names:
+  0 : ship
+  1 : aircraft
+  2 : car
+  3 : tank
+  4 : bridge
+  5 : harbor
+
+download:
+  from vajra.utils.downloads import download
+  from pathlib import Path
+
+  dir = Path(yaml['path'])
+  url = "https://github.com/NamanMakkar/vayuai_assets/releases/download/v.0.0.0/"
+  urls = [url + "sardet.zip"]
+
+  download(urls, dir=dir)

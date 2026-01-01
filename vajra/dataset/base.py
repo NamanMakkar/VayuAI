@@ -1,4 +1,4 @@
-# Vayuvahana Technologies Private Limited Vajra, AGPL-3.0 License
+# Vayuvahana Technologies Private Limited, AGPL-3.0 License
 
 import glob
 import math
@@ -23,7 +23,7 @@ class BaseDataset(Dataset):
 
     Args:
         img_path (str): Path to the folder containing images.
-        imgsz (int, optional): Image size. Defaults to 640.
+        img_size (int, optional): Image size. Defaults to 640.
         cache (bool, optional): Cache images to RAM or disk during training. Defaults to False.
         augment (bool, optional): If True, data augmentation is applied. Defaults to True.
         hyp (dict, optional): Hyperparameters to apply data augmentation. Defaults to None.
@@ -48,7 +48,7 @@ class BaseDataset(Dataset):
     def __init__(
         self,
         img_path,
-        imgsz=640,
+        img_size=640,
         cache=False,
         augment=True,
         hyp=HYPERPARAMS_CFG,
@@ -64,7 +64,7 @@ class BaseDataset(Dataset):
         """Initialize BaseDataset with given configuration and options."""
         super().__init__()
         self.img_path = img_path
-        self.imgsz = imgsz
+        self.img_size = img_size
         self.augment = augment
         self.single_cls = single_cls
         self.prefix = prefix
@@ -110,11 +110,9 @@ class BaseDataset(Dataset):
                         t = t.read().strip().splitlines()
                         parent = str(p.parent) + os.sep
                         f += [x.replace("./", parent) if x.startswith("./") else x for x in t]  # local to global path
-                        # F += [p.parent / x.lstrip(os.sep) for x in t]  # local to global path (pathlib)
                 else:
                     raise FileNotFoundError(f"{self.prefix}{p} does not exist")
             im_files = sorted(x.replace("/", os.sep) for x in f if x.split(".")[-1].lower() in IMG_FORMATS)
-            # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in IMG_FORMATS])  # pathlib
             assert im_files, f"{self.prefix}No images found in {img_path}"
         except Exception as e:
             raise FileNotFoundError(f"{self.prefix}Error loading data from {img_path}\n{HELP_URL}") from e
@@ -160,13 +158,13 @@ class BaseDataset(Dataset):
                 raise FileNotFoundError(f"Image Not Found {f}")
 
             h0, w0 = im.shape[:2]  # orig hw
-            if rect_mode:  # resize long side to imgsz while maintaining aspect ratio
-                r = self.imgsz / max(h0, w0)  # ratio
+            if rect_mode:  # resize long side to img_size while maintaining aspect ratio
+                r = self.img_size / max(h0, w0)  # ratio
                 if r != 1:  # if sizes are not equal
-                    w, h = (min(math.ceil(w0 * r), self.imgsz), min(math.ceil(h0 * r), self.imgsz))
+                    w, h = (min(math.ceil(w0 * r), self.img_size), min(math.ceil(h0 * r), self.img_size))
                     im = cv2.resize(im, (w, h), interpolation=cv2.INTER_LINEAR)
-            elif not (h0 == w0 == self.imgsz):  # resize by stretching image to square imgsz
-                im = cv2.resize(im, (self.imgsz, self.imgsz), interpolation=cv2.INTER_LINEAR)
+            elif not (h0 == w0 == self.img_size):  # resize by stretching image to square img_size
+                im = cv2.resize(im, (self.img_size, self.img_size), interpolation=cv2.INTER_LINEAR)
 
             # Add to buffer if training with augmentations
             if self.augment:
@@ -208,7 +206,7 @@ class BaseDataset(Dataset):
         n = min(self.ni, 30)  # extrapolate from 30 random images
         for _ in range(n):
             im = cv2.imread(random.choice(self.im_files))  # sample image
-            ratio = self.imgsz / max(im.shape[0], im.shape[1])  # max(h, w)  # ratio
+            ratio = self.img_size / max(im.shape[0], im.shape[1])  # max(h, w)  # ratio
             b += im.nbytes * ratio**2
         mem_required = b * self.ni / n * (1 + safety_margin)  # GB required to cache dataset into RAM
         mem = psutil.virtual_memory()
@@ -244,7 +242,7 @@ class BaseDataset(Dataset):
             elif mini > 1:
                 shapes[i] = [1, 1 / mini]
 
-        self.batch_shapes = np.ceil(np.array(shapes) * self.imgsz / self.stride + self.pad).astype(int) * self.stride
+        self.batch_shapes = np.ceil(np.array(shapes) * self.img_size / self.stride + self.pad).astype(int) * self.stride
         self.batch = bi  # batch index of image
 
     def __getitem__(self, index):

@@ -5,11 +5,11 @@ Object Detection is a task that involves locating objects and classifying them i
 An object detector outputs a set of bounding boxes that enclose the objects in the image along with the class labels and confidence scores for each box. Object Detection is required for identifying objects of interest in a scene.
 
 !!! tip
-    VajraV1 Detection models use the `-det` suffix, i.e `vajra-v1-nano-det.pt` and are pretrained on the [COCO](https://github.com/NamanMakkar/VayuAI/vajra/configs/datasets/coco.yaml) dataset. These are the default VajraV1 models.
+    VajraV1 Detection models use the `-det` suffix, i.e `vajra-v1-nano-det.pt` and are pretrained on the [COCO](https://github.com/NamanMakkar/VayuAI/blob/main/vajra/configs/datasets/coco.yaml) dataset. These are the default VajraV1 models.
 
 ## Models
 
-The VajraV1 detection models are shown here. VajraV1 detection, segmentation and pose models have been pretrained on the [COCO](https://github.com/NamanMakkar/VayuAI/vajra/configs/datasets/coco.yaml) dataset. The Classification models is being trained on the [ImageNet](https://github.com/NamanMakkar/VayuAI/vajra/configs/datasets/) dataset.
+The VajraV1 detection models are shown here. VajraV1 detection, segmentation and pose models have been pretrained on the [COCO](https://github.com/NamanMakkar/VayuAI/blob/main/vajra/configs/datasets/coco.yaml) dataset. The Classification models is being trained on the [ImageNet](https://github.com/NamanMakkar/VayuAI/blob/main/vajra/configs/datasets/) dataset.
 
 ## Train
 
@@ -85,6 +85,8 @@ vajra detect predict model=path/to/best-vajra-v1-nano-det.pt source="path/to/img
 
 ## Export
 
+Export VajraV1 models to ONNX format using the code below:
+
 ```python
 from vajra import Vajra
 
@@ -97,7 +99,3 @@ model.export(format="onnx")
 ```bash
 vajra export model=vajra-v1-nano-det.pt
 ```
-
-
-
-

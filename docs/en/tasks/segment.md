@@ -6,7 +6,7 @@ An instance segmentation model outputs a set of masks or contours that outline e
 
 ## Models
 
-The VajraV1 pretrained segmentation models are shown here. The VajraV1 detection, segmentation and pose models have been trained on the [COCO](https://github.com/NamanMakkar/VayuAI/vajra/configs/datasets/coco.yaml) dataset. While the VajraV1 classification models are being trained on the [ImageNet](https://github.com/NamanMakkar/VayuAI/vajra/configs/datasets/) dataset.
+The VajraV1 pretrained segmentation models are shown here. The VajraV1 detection, segmentation and pose models have been trained on the [COCO](https://github.com/NamanMakkar/VayuAI/blob/main/vajra/configs/datasets/coco.yaml) dataset. While the VajraV1 classification models are being trained on the [ImageNet](https://github.com/NamanMakkar/VayuAI/blob/main/vajra/configs/datasets/) dataset.
 
 ## Train
 

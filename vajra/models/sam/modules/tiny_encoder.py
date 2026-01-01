@@ -979,19 +979,19 @@ class TinyViT(nn.Module):
         """Performs the forward pass through the TinyViT model, extracting features from the input image."""
         return self.forward_features(x)
 
-    def set_imgsz(self, imgsz=[1024, 1024]):
+    def set_img_size(self, img_size=[1024, 1024]):
         """
         Set image size to make model compatible with different image sizes.
 
         Args:
-            imgsz (Tuple[int, int]): The size of the input image.
+            img_size (Tuple[int, int]): The size of the input image.
         """
-        imgsz = [s // 4 for s in imgsz]
-        self.patches_resolution = imgsz
+        img_size = [s // 4 for s in img_size]
+        self.patches_resolution = img_size
         for i, layer in enumerate(self.layers):
             input_resolution = (
-                imgsz[0] // (2 ** (i - 1 if i == 3 else i)),
-                imgsz[1] // (2 ** (i - 1 if i == 3 else i)),
+                img_size[0] // (2 ** (i - 1 if i == 3 else i)),
+                img_size[1] // (2 ** (i - 1 if i == 3 else i)),
             )
             layer.input_resolution = input_resolution
             if layer.downsample is not None:

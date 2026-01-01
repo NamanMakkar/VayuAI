@@ -1,0 +1,76 @@
+# VajraV1 Model Export to TorchScript for Quick Deployment
+
+Deploying computer vision models across different environments, including embedded systems, web browsers, or platforms with limited Python support, requires flexible and portable solution. TorchScript focuses on portability and the ability to run models in environments where the entire Python framework is unavailable. This makes it ideal for scenarious where you need to deploy your computer vision capabilities across devices or platforms.
+
+Export to TorchScript to serialize your VajraV1 models for cross-platform compatibility and streamlined deployment. In this guide, you will see how to export your VajraV1 models to the TorchScript format, making it easier for you to use them across a wider range of applications.
+
+## Why Export to TorchScript
+
+Developed by the creators of PyTorch, TorchScript is a powerful tool for optimizing and deploying PyTorch models across a variety of platforms. Exporting VajraV1 models to [TorchScript](https://docs.pytorch.org/docs/stable/jit.html) is crucial for moving from research to real-world applications. TorchScript, part of the PyTorch framework, helps make this transition smoother by allowing PyTorch models to be used in environments that don't support Python.
+
+The process involves two techniques: tracing and scripting. Tracing records operations during model execution, while scripting allows for the definition of models using a subset of Python. These techniques ensure that models like VajraV1 can still work their magic even outside their usual Python environment.
+
+TorchScript models can also be optimized through techniques such as operator fusion and refinements in memory usage, ensuring efficient execution. Another advantage of exporting to TorchScript is its potential to accelerate model execution across various hardware platforms. It creates a standalone, production-ready representation of your PyTorch model that can be integrated into C++ environments, embedded systems, or deployed in web or mobile applications.
+
+## Key Features of TorchScript Models
+
+Here are the key features that make TorchScript a valuable tool for developers:
+
+- **Static Graph Execution**: TorchScript uses a static graph representation of the model's computation, which is different from PyTorch's dynamic graph execution. In static graph execution, the computational graph is defined and compiled once before the actual execution, resulting in improved performance during inference.
+
+- **Model Serialization**: TorchScript allows you to serialize PyTorch models into a platform-independent format. Serialized models can be loaded without requiring the original Python code, enabling deployment in different runtime environments.
+
+- **JIT Compilation**: TorchScript uses Just-In-Time (JIT) compilation to convert PyTorch models into an optimized intermediate representation. JIT compiles the model's computational graph, enabling efficient execution on target devices.
+
+- **Cross-Language Integration**: With TorchScript, you can export PyTorch models to other languages such as C++, Java, and JavaScript. This makes it easier to integrate PyTorch models into existing software systems written in different languages.
+
+- **Gradual Conversion**: TorchScript provides a gradual conversion approach, allowing you to incrementally convert parts of your PyTorch model into TorchScript. This flexibility is particularly useful when dealing with complex models or when you want to optimize specific portions of the code.
+
+## Deployment Options in TorchScript
+
+TorchScript offers various deployment options for machine learning models, such as:
+
+- **C++ API**: The most common use case for TorchScript is its C++ API, which allows you to load and execute optimized TorchScript models directly within C++ applications. This is ideal for production environments where Python may not be suitable or available. The C++ API offers low-overhead and efficient execution of TorchScript models, maximizing performance potential.
+
+- **Mobile Deployment**: TorchScript offers tools for converting models into formats readily deployable on mobile devices. PyTorch Mobile provides a runtime for executing these models within iOS and Android apps. This enables low-latency, offline inference capabilities, enhancing user experience and data privacy.
+
+- **Cloud Deployment**: TorchScript models can be deployed to cloud-based servers using solutions like TorchServe. It provides features like model versioning, batching, and metrics monitoring for scalable deployment in production environments. Cloud deployment with TorchScript can make your models accessible via APIs or other web services.
+
+## Exporting to TorchScript: Converting your VajraV1 Model
+
+Exporting VajraV1 models to TorchScript makes it easier to use them in different places and helps them run faster and more efficiently. This is great for anyone looking to use deep learning models more effectively in real-world applications.
+
+## Usage Example
+
+All VajraV1 models are designed to support export out of the box, making it easy to integrate them into your preferred deployment worflow. You can view the [full list of supported formats and configuration options](../modes/export.md) to choose the best setup for your application.
+
+!!! example "Usage"
+
+    === "Python"
+
+        ```python
+        from vajra import Vajra
+
+        # Load the VajraV1 model
+        model = Vajra("vajra-v1-nano-det.pt")
+
+        # Export the model to TorchScript format
+        model.export(format="torchscript")
+
+        # Load the exported TorchScript model
+        torchscript_model = Vajra("vajra-v1-nano-det.torchscript")
+
+        # Run inference
+        results = torchscript_model("path/to/img.jpg")
+        ```
+
+    === "CLI"
+
+        ```bash
+        # Export a VajraV1 PyTorch model to TorchScript format
+        vajra export model=vajra-v1-nano-det.pt format=torchscript
+
+        # Run inference with the exported model
+        vajra predict model=vajra-v1-nano-det.torchscript source='path/to/img.jpg'
+        ```
+

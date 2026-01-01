@@ -270,8 +270,8 @@ def check_file(file, suffix="", download=True, strict=True):
 def check_yaml(file, suffix=(".yaml", ".yml"), hard=True):
     return check_file(file, suffix, strict=hard)
 
-def check_model_file_from_stem(model='vajra-v1-nano', pretrained=True):
-    if model and not Path(model).suffix and Path(model).stem in downloads.GITHUB_ASSETS_STEMS and pretrained:
+def check_model_file_from_stem(model='vajra-v1-nano'):
+    if model and not Path(model).suffix and Path(model).stem in downloads.GITHUB_ASSETS_STEMS:
         return Path(model).with_suffix(".pt")
     else:
         return model
@@ -438,4 +438,5 @@ def print_args(args: Optional[dict] = None, show_file=True, show_func=False):
     LOGGER.info(colorstr(string) + ", ".join(f"{k} = {strip_auth(v)}" for k, v in args.items()))
 
 IS_PYTHON_3_12 = PYTHON_VERSION.startswith("3.12")
+IS_PYTHON_3_13 = PYTHON_VERSION.startswith("3.13")
 IS_PYTHON_MINIMUM_3_10 = check_python_new("3.10", strict=False)

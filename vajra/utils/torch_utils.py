@@ -26,9 +26,12 @@ RANK = int(os.getenv('RANK', -1))
 WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 
 TORCH_1_9 = check_version(torch.__version__, "1.9.0")
+TORCH_1_11 = check_version(torch.__version__, "1.11.0")
 TORCH_1_13 = check_version(torch.__version__, "1.13.0")
 TORCH_2_0 = check_version(torch.__version__, "2.0.0")
+TORCH_2_1 = check_version(torch.__version__, "2.1.0")
 TORCH_2_4 = check_version(torch.__version__, "2.4.0")
+TORCH_2_9 = check_version(torch.__version__, "2.9.0")
 TORCHVISION_0_10 = check_version(torchvision.__version__, "0.10.0")
 TORCHVISION_0_11 = check_version(torchvision.__version__, "0.11.0")
 TORCHVISION_0_13 = check_version(torchvision.__version__, "0.13.0")
@@ -181,6 +184,20 @@ def torch_distributed_zero_first(local_rank: int):
     yield
     if initialized and local_rank == 0:
         dist.barrier(device_ids=[0])
+
+@contextmanager
+def onnx_arange_patch(args):
+    if args.dynamic and args.half and args.format == "onnx":
+        func = torch.arange
+
+        def arange(*args, dtype=None, **kwargs):
+            return func(*args, **kwargs).to(dtype)
+        
+        torch.arange = arange
+        yield
+        torch.arange = func
+    else:
+        yield
 
 
 def device_count():
@@ -514,11 +531,11 @@ def unwrap_model(m: nn.Module) -> nn.Module:
         else:
             return m
 
-def model_info(model, detailed=False, verbose=True, imgsz=640):
+def model_info(model, detailed=False, verbose=True, img_size=640):
     """
     Model information.
 
-    imgsz may be int or list, i.e. imgsz=640 or imgsz=[640, 320].
+    img_size may be int or list, i.e. img_size=640 or img_size=[640, 320].
     """
     if not verbose:
         return
@@ -536,7 +553,7 @@ def model_info(model, detailed=False, verbose=True, imgsz=640):
                 % (i, name, p.requires_grad, p.numel(), list(p.shape), p.mean(), p.std(), p.dtype)
             )
 
-    flops = get_flops(model, imgsz)
+    flops = get_flops(model, img_size)
     fused = " (fused)" if getattr(model, "is_fused", lambda: False)() else ""
     fs = f", {flops:.1f} GFLOPs" if flops else ""
     model_name = Path(model.model_name).stem.replace("vajra-v1", "VajraV1") or "Model"
@@ -575,6 +592,13 @@ def get_latest_opset():
 def intersect_dicts(dict_a, dict_b, exclude=()):
     return {k : v for k, v in dict_a.items() if k in dict_b and all(x not in k for x in exclude) and v.shape == dict_b[k].shape}
 
+def unset_deterministic():
+    """Unset all the configurations applied for deterministic training."""
+    torch.use_deterministic_algorithms(False)
+    torch.backends.cudnn.deterministic = False
+    os.environ.pop("CUBLAS_WORKSPACE_CONFIG", None)
+    os.environ.pop("PYTHONHASHSEED", None)
+
 def init_seeds(seed=0, deterministic=False):
     random.seed(seed)
     np.random.seed(seed)
@@ -591,14 +615,15 @@ def init_seeds(seed=0, deterministic=False):
         else:
             LOGGER.warning("WARNING! Upgrade to torch>=2.0.0 for deterministic training.")
     else:
-        torch.use_detrministic_algorithms(False)
-        torch.backends.cudnn.deterministic = False
+        unset_deterministic()
+        #torch.use_detrministic_algorithms(False)
+        #torch.backends.cudnn.deterministic = False
 
 def one_cycle(y1=0.0, y2=1.0, steps=100):
     """Returns a lambda function for sinusoidal ramp from y1 to y2 https://arxiv.org/pdf/1812.01187.pdf."""
     return lambda x: max((1 - math.cos(x * math.pi / steps)) / 2, 0) * (y2 - y1) + y1
 
-def smart_resume(ckpt, optimizer, ema=None, weights='yolov5s.pt', epochs=300, resume=True):
+def smart_resume(ckpt, optimizer, ema=None, weights='vajra-v1-nano-det.pt', epochs=300, resume=True):
     # Resume training from a partially trained checkpoint
     best_fitness = 0.0
     start_epoch = ckpt['epoch'] + 1
@@ -645,7 +670,7 @@ class ModelEMA:
     """ Updated Exponential Moving Average (EMA) from https://github.com/rwightman/pytorch-image-models
     Keeps a moving average of everything in the model state_dict (parameters and buffers)
     For EMA details see https://www.tensorflow.org/api_docs/python/tf/train/ExponentialMovingAverage
-    To diable EMA set the `enabled` attribute to `False`
+    To disable EMA set the `enabled` attribute to `False`
     """
 
     def __init__(self, model, decay=0.9999, tau=2000, updates=0):

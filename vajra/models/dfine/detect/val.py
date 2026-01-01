@@ -29,7 +29,7 @@ class DETRDataset(VajraDetDataset):
         if self.augment:
             hyp.mosaic = hyp.mosaic if self.augment and not self.rect else 0.0
             hyp.mixup = hyp.mixup if self.augment and not self.rect else 0.0
-            transforms = vajra_transforms(self, self.imgsz, hyp, stretch=True)
+            transforms = vajra_transforms(self, self.img_size, hyp, stretch=True)
         else:
             transforms = Compose([])
 
@@ -48,6 +48,7 @@ class DETRDataset(VajraDetDataset):
     
 class DETRValidator(DetectionValidator):
     def __init__(self, dataloader=None, save_dir=None, pbar=None, args=None, _callbacks=None):
+        super().__init__(dataloader, save_dir, pbar, args, _callbacks)
         self.args = get_config(config=HYPERPARAMS_DETR_CFG_DICT, model_configuration=args)
         self.dataloader = dataloader
         self.pbar = pbar
@@ -85,7 +86,7 @@ class DETRValidator(DetectionValidator):
     def build_dataset(self, img_path, mode="val", batch=None):
         return DETRDataset(
             img_path = img_path,
-            imgsz = self.args.img_size,
+            img_size = self.args.img_size,
             batch_size = batch,
             augment = False,
             hyp = self.args,
@@ -106,14 +107,14 @@ class DETRValidator(DetectionValidator):
         #LOGGER.info(f"Num classes: {model.num_classes}")
         bbox_pred = torchvision.ops.box_convert(boxes, in_fmt="cxcywh", out_fmt="xyxy")
         bbox_pred *= self.args.img_size
-        num_queries = model.model.decoder.num_queries
-        if model.loss_config["use_focal_loss"] == True:
+        num_queries = self.args.num_queries #model.model.decoder.num_queries
+        num_classes = model.num_classes if self.training else model.model.num_classes
+        focal = model.loss_config["use_focal_loss"] if self.training else model.model.loss_config["use_focal_loss"]
+        if focal == True:
             scores = torch.sigmoid(logits)
             scores, index = torch.topk(scores.flatten(1), num_queries, dim=-1)
-            labels = index % model.num_classes
-            index = index // model.num_classes
-            #LOGGER.info(f"index: {index}\n")
-            #LOGGER.info(f"index shape: {index.shape}")
+            labels = index % num_classes
+            index = index // num_classes
             bbox_pred = bbox_pred.gather(dim=1, index=index.unsqueeze(-1).repeat(1, 1, bbox_pred.shape[-1]))
         else:
             scores = torch.softmax(logits, dim=-1)[:, :, :-1]
@@ -242,7 +243,7 @@ class DETRValidator(DetectionValidator):
         
         else:
             LOGGER.info(
-                "Speed: %.1fms preprocess, %.1fms inference, %.1fms loss, %.1fms postprocess per image"
+                "Speed: %.1fms preprocess, %.1fms inference, %.1fms postprocess per image"
                 % tuple(self.speed.values())
             )
 

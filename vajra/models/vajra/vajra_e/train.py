@@ -2,6 +2,9 @@ from copy import copy, deepcopy
 from pathlib import Path
 
 import torch
+import itertools
+
+from typing import Any
 
 from vajra.nn.vajra import VajraEModel
 from vajra.dataset import VajraConcatDataset, build_vajra_dataset, build_vision_language_dataset
@@ -67,6 +70,10 @@ class VajraEPETrainer(DetectionTrainer):
         return model
 
 class VajraETrainerFromScratch(VajraETrainer):
+    def __init__(self, config=HYPERPARAMS_CFG_DICT, model_configuration = None, _callbacks=None):
+        self.text_embeddings = None
+        super().__init__(config, model_configuration, _callbacks)
+
     def build_dataset(self, img_path, mode="train", batch=None):
         gs = max(int(unwrap_model(self.model).stride.max() if self.model else 0), 32)
         if mode != "train":
@@ -86,6 +93,29 @@ class VajraETrainerFromScratch(VajraETrainer):
         ]
         self.set_text_embeddings(datasets, batch)
         return VajraConcatDataset(datasets) if len(datasets) > 1 else datasets[0]
+    
+    def set_text_embeddings(self, datasets: list[Any], batch: int | None) -> None:
+        text_embeddings = {}
+        for dataset in datasets:
+            if not hasattr(dataset, "category_names"):
+                continue
+            text_embeddings.update(
+                self.generate_text_embeddings(
+                    list(dataset.category_names), batch, cache_dir=Path(dataset.img_path).parent
+                )
+            )
+        self.text_embeddings = text_embeddings
+
+    def preprocess_batch(self, batch):
+        batch = DetectionTrainer.preprocess_batch(self, batch)
+
+        texts = list(itertools.chain(*batch["texts"]))
+        txt_feats = torch.stack([self.text_embeddings[text] for text in texts]).to(
+            self.device, non_blocking=self.device.type == "cuda"
+        )
+
+        batch["txt_feats"] = txt_feats.reshape(len(batch["texts"]), -1, txt_feats.shape[-1])
+        return batch
     
     def get_dataset(self):
         final_data = {}

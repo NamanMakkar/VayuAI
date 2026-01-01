@@ -3,8 +3,7 @@
 </div>
 
 Vayuvahana Technologies Private Limited [VajraV1](https://github.com/NamanMakkar/VayuAI) is a 
-state-of-the-art (SOTA) real time object detection model inspired by the YOLO model architectures. VajraV1 is a family of fast, lightweight models that can be used for a variety of
-tasks like object detection and tracking, instance segmentation, oriented object detection, pose detection, and image classification.
+state-of-the-art (SOTA) real time object detection model inspired by the YOLO model architectures. VajraV1 is a family of fast, lightweight models that can be used for a variety of tasks like object detection and tracking, instance segmentation, oriented object detection, pose detection, and image classification.
 
 ## <div align="center">Enterprise License</div>
 To request for an Enterprise License please get in touch via [Email](mailto:namansingh2803@gmail.com)
@@ -44,10 +43,22 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 | [VajraV1-small-pose](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.4/vajra-v1-small-pose.pt) | 640           | 65                          | 88.9                             | 1.4                                                 | 12.07      | 49.6      |
 | [VajraV1-medium-pose](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.4/vajra-v1-medium-pose.pt) | 640           | 68.5                          | 89.9                             | 1.8                                                 | 21.15      | 98.2      |
 | [VajraV1-large-pose](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.4/vajra-v1-large-pose.pt) | 640           | 69.5                          | 90.6                             | 2.1                                                 | 25.49      | 118.9     |
-| [VajraV1-xlarge-pose](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.4/vajra-v1-xlarge-pose.pt) | 640           | 71.5                          | 91.4                             | 3.7                                                 | 73.56       | 26.5      |
+| [VajraV1-xlarge-pose](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.4/vajra-v1-xlarge-pose.pt) | 640           | 71.5                          | 91.4                             | 3.7                                                 | 73.56       | 226.5      |
 
 <p align="center">
 <img width="100%" src="./vajra/assets/vajra_v1_pose_performance.png" alt="VajraV1 Pose Estimation Performance on COCO Dataset">
+</p>
+
+
+## <div align="center">Oriented Bounding Box Object Detection Performance on the DOTAv1 Dataset</div>
+| Model                                                                                | Size (pixels) | OBB mAP<sup>val<br>50-95</sup>  Original | OBB mAP<sup>val<br>50-95</sup> Multi-Scale | Speed<br><sup>RTX 4090 TensorRT10 Latency (ms)</sup> | Params (M) | FLOPs (B) |
+|-------------------------------------------------------------------------------------|---------------|-------------------------------|-------------------------------|-----------------------------------------------------|------------|-----------|
+| [VajraV1-nano-obb](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.6/vajra-v1-nano-obb.pt) | 1024           | 50.8                          | 62.8                             | 1.1                                                 | 3.82       | 35.8      |
+| [VajraV1-small-obb](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.6/vajra-v1-small-obb.pt) | 1024           | 65                          | 88.9                             | 1.7                                                 | 11.84      | 124.8      |
+| [VajraV1-medium-obb](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.6/vajra-v1-medium-obb.pt) | 1024           | 68.5                          | 89.9                             | 2.3                                                 | 21.09      | 251.3      |
+
+<p align="center">
+<img width="100%" src="./vajra/assets/vajra_v1_obb_dotav1_perf.png" alt="VajraV1 OBB Performance on the DOTAv1 Dataset">
 </p>
 
 ## <div align="center">Documentation</div>
@@ -160,7 +171,34 @@ path = model.export(format="engine", device=0, half=True)
 
 ## Model Architecture Details
 
-To be published
+**VajraV1 - The most accurate Real Time Object Detector of the YOLO family**
+arXiv: [https://arxiv.org/abs/2512.13834](https://arxiv.org/abs/2512.13834)
+
+## Citation
+
+If you use VajraV1 and VayuAI SDK in your research please cite the following:
+
+```latex
+@misc{makkar2025vajrav1accuratereal,
+      title={VajraV1 -- The most accurate Real Time Object Detector of the YOLO family}, 
+      author={Naman Balbir Singh Makkar},
+      year={2025},
+      eprint={2512.13834},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2512.13834}, 
+}
+```
+
+```
+@software{vajrav1_vayuai,
+          author = {Naman Balbir Singh Makkar},
+          title = {{Vayuvahana Technologies VajraV1}},
+          version = {1.0.6},
+          year = {2026},
+          url = {https://github.com/NamanMakkar/VayuAI},
+}
+```
 
 ## Acknowledgements
 

@@ -6,7 +6,7 @@ The output of an oriented object detector is a set of rotated bounding boxes tha
 
 ## Model
 
-The VajraV1 pretrained OBB models are shown here which are pretrained on the [DOTAv1](https://github.com/NamanMakkar/VayuAI/vajra/configs/datasets/DOTAv1.yaml) dataset.
+The VajraV1 pretrained OBB models are shown here which are pretrained on the [DOTAv1](https://github.com/NamanMakkar/VayuAI/blob/main/vajra/configs/datasets/DOTAv1.yaml) dataset.
 
 ## Train
 
@@ -48,11 +48,11 @@ Validate a trained VajraV1 obb model on the DOTA8 dataset. No arguments are need
 from vajra import Vajra
 
 # Load a model
-model = Vajra("vajra-v1-nano-obb.pt") # COCO pretrained model
+model = Vajra("vajra-v1-nano-obb.pt") # DOTAv1 pretrained model
 model = Vajra("path/to/best-vajra-v1-nano-obb.pt") # Custom model
 
 # Validate the model
-metrics = model.val(data="dota8.yaml") # dataset and settings remembered from training
+metrics = model.val(data="dota8.yaml", conf=0.01) # dataset and settings remembered from training, conf=0.01 for DOTAv1 val
 metrics.box.map # map50-95
 metrics.box.map50 # map50
 metrics.box.map75 # map75

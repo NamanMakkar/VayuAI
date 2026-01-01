@@ -176,6 +176,40 @@ class RepConv(nn.Module):
         if hasattr(self, "id_tensor"):
             self.__delattr__("id_tensor") 
 
+class CBLinear(nn.Module):
+    """CBLinear."""
+
+    def __init__(self, c1, c2s, k=1, s=1, p=None, g=1):
+        """Initializes the CBLinear module, passing inputs unchanged."""
+        super().__init__()
+        self.c1 = c1
+        self.c2s = c2s
+        self.conv = nn.Conv2d(c1, sum(c2s), k, s, autopad(k, p), groups=g, bias=True)
+
+    def forward(self, x):
+        """Forward pass through CBLinear layer."""
+        return self.conv(x).split(self.c2s, dim=1)
+    
+    def get_module_info(self):
+        return "CBLinear", f"[{self.c1}, {self.c2s}]"
+    
+class CBFuse(nn.Module):
+    """CBFuse."""
+
+    def __init__(self, idx):
+        """Initializes CBFuse module with layer index for selective feature fusion."""
+        super().__init__()
+        self.idx = idx
+
+    def forward(self, xs):
+        """Forward pass through CBFuse layer."""
+        target_size = xs[-1].shape[2:]
+        res = [F.interpolate(x[self.idx[i]], size=target_size, mode="nearest") for i, x in enumerate(xs[:-1])]
+        return torch.sum(torch.stack(res + xs[-1:]), dim=0)
+    
+    def get_module_info(self):
+        return "CBFuse", f"[{self.idx}]"
+
 class LayerNorm2d(nn.Module):
     def __init__(self, num_channels, eps=1e-6) -> None:
         super().__init__()
@@ -376,6 +410,36 @@ class MakkarNormalization(nn.Module):
 class DepthwiseConvBNAct(ConvBNAct):
     def __init__(self, in_c, out_c, stride=1, kernel_size=1, padding=None, groups=1, dilation=1, bias=False, act='silu') -> None:
         super().__init__(in_c, out_c, stride, kernel_size, padding, groups=math.gcd(in_c, out_c), dilation=dilation, bias=bias, act=act)
+
+class DSConv(nn.Module):
+    def __init__(self, in_c, out_c, stride=1, kernel_size=3, padding=None, dilation=1, bias=False, act="silu") -> None:
+        super().__init__()
+        self.in_c = in_c
+        self.out_c = out_c
+        self.stride = stride
+        self.kernel_size = kernel_size
+        self.padding = padding
+        self.dilation = dilation
+        self.bias = bias
+        self.act = act
+        self.dwconv = Conv(in_c, out_c, stride, kernel_size, padding, groups=math.gcd(in_c, out_c), dilation=dilation, bias=bias)
+        self.pwconv = ConvBNAct(in_c, out_c, 1, 1)
+    
+    def forward(self, x):
+        dw = self.dwconv(x)
+        pw = self.pwconv(dw)
+        return pw
+    
+class DSBottleneck(nn.Module):
+    def __init__(self, in_c, out_c, kernel_1, kernel_2, shortcut=True, expansion_ratio=0.5, dilation_2 = 1):
+        self.dwconv1 = DSConv(in_c, out_c, 1, kernel_1)
+        self.dwconv2 = DSConv(out_c, out_c, 1, kernel_2, dilation=dilation_2)
+        self.add = shortcut and (in_c == out_c)
+
+    def forward(self, x):
+        conv1 = self.dwconv1(x)
+        conv2 = self.dwconv2(conv1)
+        return x + conv2 if self.add else conv2
 
 class DepthWiseSeparableConvBNAct(nn.Module):
     def __init__(self, in_c, out_c, stride=1, kernel_size=1, padding=None, groups=1, dilation=1, bias=False, act='silu') -> None:
@@ -602,7 +666,7 @@ class RepBottleneck(nn.Module):
         self.expansion_ratio=expansion_ratio
         self.groups=groups
         self.act = act
-        self.conv1 = RepConv(in_c, hidden_c, kernel_size=kernel_size[0], stride=1, act=act) #ConvBNAct(in_c, hidden_c, kernel_size=kernel_size[0], stride=1, act=act)
+        self.conv1 = RepConv(in_c, hidden_c, kernel_size=kernel_size[0], stride=1, act=act)
         self.conv2 = ConvBNAct(hidden_c, out_c, kernel_size=kernel_size[1], stride=1, groups=groups, act=act)
         self.add = shortcut and in_c == out_c
 
@@ -980,6 +1044,36 @@ class MerudandaDW(nn.Module):
     
     def get_module_info(self):
         return "MerudandaDW", f"[{self.in_c}, {self.out_c}, {self.shortcut}, {self.expansion_ratio}, {self.use_rep_vgg_dw}, {self.kernel_size}, {self.stride}]"
+
+class MerudandaDW2(nn.Module):
+    def __init__(self, in_c, out_c, shortcut=True, expansion_ratio=0.5, use_rep_vgg_dw=False, kernel_size=5, stride=1):
+        super().__init__()
+        hidden_c = int(out_c * expansion_ratio)
+        self.in_c = in_c
+        self.out_c = out_c
+        self.shortcut=shortcut
+        self.expansion_ratio = expansion_ratio
+        self.use_rep_vgg_dw = use_rep_vgg_dw
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.add = shortcut and in_c == out_c and stride == 1
+        self.conv = ConvBNAct(in_c, out_c, 1, 1)
+        self.block = nn.Sequential(
+            RepVGGDW_3x3(in_c, kernel_size=3, stride=1), #DepthwiseConvBNAct(in_c, in_c, kernel_size=3),
+            ConvBNAct(in_c, 2 * hidden_c, 1, 1),
+            DepthwiseConvBNAct(2 * hidden_c, 2 * hidden_c, stride=stride, kernel_size=kernel_size) if not use_rep_vgg_dw else RepVGGDW(2 * hidden_c, kernel_size=kernel_size, stride=stride),
+            ConvBNAct(2 * hidden_c, out_c, 1, 1),
+            RepVGGDW_3x3(out_c, 3, 1),
+            #DepthwiseConvBNAct(out_c, out_c, 1, 3),
+        )
+
+    def forward(self, x):
+        c = self.conv(x)
+        y = self.block(x)
+        return c + y if self.add else y
+    
+    def get_module_info(self):
+        return "MerudandaDW2", f"[{self.in_c}, {self.out_c}, {self.shortcut}, {self.expansion_ratio}, {self.use_rep_vgg_dw}, {self.kernel_size}, {self.stride}]"
     
 class VajraMerudandaMS(nn.Module):
     def __init__(self, in_c, out_c, kernel_size=(1, 3, 3), num_blocks=2, expansion_ratio=0.5):
@@ -2532,6 +2626,31 @@ class InnerBlock(nn.Module):
         b = self.bottleneck_blocks(a)
         out = self.conv3(torch.cat((b, self.conv2(x)), 1))
         return out
+    
+class DSInnerBlock(InnerBlock):
+    def __init__(self, in_c, out_c, num_blocks=1, shortcut=False, kernel_size=1, expansion_ratio=0.5, kernel_1 = 3, kernel_2 = 5, dilation_2 = 1):
+        super().__init__(in_c, out_c, num_blocks, shortcut, kernel_size, expansion_ratio)
+        hidden_c = int(out_c * expansion_ratio)
+        self.bottleneck_blocks = nn.Sequential(*[DSBottleneck(hidden_c, hidden_c, shortcut=shortcut, expansion_ratio=1.0, kernel_1=kernel_1, kernel_2=kernel_2, dilation_2=dilation_2) for _ in range(num_blocks)])
+
+class VajraV3GrivaDS(nn.Module):
+    def __init__(self, in_c, out_c, num_blocks=1, inner_block=False, expansion_ratio=0.5, shortcut=True, kernel_1=3, kernel_2=7, dilation_2=1):
+        hidden_c = int(out_c * expansion_ratio)
+        self.conv1 = ConvBNAct(in_c, 2 * hidden_c, 1, 1)
+        self.bottleneck_blocks = nn.ModuleList(
+            DSInnerBlock(hidden_c, hidden_c, 2, shortcut=shortcut, expansion_ratio=1.0, kernel_1=kernel_1, kernel_2=kernel_2, dilation_2=dilation_2) for _ in range(num_blocks)
+        ) if inner_block else nn.ModuleList(
+            DSBottleneck(hidden_c, hidden_c, kernel_1, kernel_2, shortcut, 1.0, dilation_2) for _ in range(num_blocks)
+        )
+        self.conv2 = ConvBNAct((num_blocks + 2) * hidden_c, out_c, 1, 1)
+
+    def forward(self, x):
+        conv1 = self.conv1(x)
+        fm1, fm2 = conv1.chunk(2, 1)
+        fms = [fm1, fm2]
+        fms.extend(bottleneck_block(fms[-1]) for bottleneck_block in self.bottleneck_blocks)
+        conv2 = self.conv2(torch.concat(fms, dim=1))
+        return conv2
 
 class InnerBlockMLPResViT(nn.Module):
     def __init__(self, in_c, out_c, num_blocks=1, shortcut=False, expansion_ratio=0.5, res_vit=False) -> None:
@@ -4322,7 +4441,7 @@ class VajraV1AttentionBhag6(nn.Module):
         return f"VajraV1AttentionBhag6", f"[{self.in_c}, {self.out_c}, {self.num_blocks}, {self.expansion_ratio}, {self.lite}]"
 
 class VajraV1AttentionBhag7(nn.Module):
-    def __init__(self, in_c, out_c, num_blocks=2, expansion_ratio=0.5, lite=False) -> None:
+    def __init__(self, in_c, out_c, num_blocks=1, expansion_ratio=0.5, lite=False) -> None:
         super().__init__()
         self.in_c = in_c
         self.out_c = out_c
@@ -4332,26 +4451,20 @@ class VajraV1AttentionBhag7(nn.Module):
         self.hidden_c = int(expansion_ratio * out_c)
         self.out_c = out_c
         self.lite = lite
-        self.conv1 = ConvBNAct(self.in_c, 2*self.hidden_c, 1, 1) #SPPF(self.in_c, 2*self.hidden_c, 5)
-        self.attn = nn.ModuleList(
-                nn.Sequential(*(AttentionBlockV2(self.hidden_c, self.hidden_c, num_heads=self.hidden_c // 64 if not lite else self.hidden_c // 8, kernel_size=5, mlp_ratio=1.5) for _ in range(2))) for _ in range(num_blocks)
-            )
-        self.conv2 = ConvBNAct((num_blocks + 2) * self.hidden_c, out_c, 1, 1)
+        self.conv1 = ConvBNAct(self.in_c, 2*self.hidden_c, 1, 1)
+        self.attn = AttentionBlockV2(self.hidden_c, self.hidden_c, num_heads=self.hidden_c // 64 if not lite else self.hidden_c // 8, kernel_size=3, mlp_ratio=2.0)
+        self.conv2 = ConvBNAct(2 * self.hidden_c, out_c, 1, 1)
 
     def forward(self, x):
         fm1, fm2 = self.conv1(x).chunk(2, 1)
-        #fm2 = fm2 + fm1
-        fms = [fm1, fm2]
-        fms.extend(attn(fms[-1]) for attn in self.attn)
-        out = self.conv2(torch.cat(fms, 1))
+        fm3 = self.attn(fm2)
+        out = self.conv2(torch.cat((fm1, fm3), 1))
         return out
     
     def forward_split(self, x):
         fm1, fm2 = self.conv1(x).split(self.hidden_c, 1)
-        #fm2 = fm2 + fm1
-        fms = [fm1, fm2]
-        fms.extend(attn(fms[-1]) for attn in self.attn)
-        out = self.conv2(torch.cat(fms, 1))
+        fm3 = self.attn(fm2)
+        out = self.conv2(torch.cat((fm1, fm3), 1))
         return out
 
     def get_module_info(self):
@@ -4875,8 +4988,43 @@ class SanlayanSPPFVajraMerudanda(nn.Module):
     def get_module_info(self):
         return f"SanlayanSPPFVajraMerudanda", f"[{self.in_c}, {self.out_c}, {self.stride}, {self.num_blocks}, {self.lite}, {self.use_sppf}]"
 
+class SanlayanVajraMerudandaV2(nn.Module):
+    def __init__(self, in_c, out_c, mid_c1, mid_c2, stride=1, num_blocks=2) -> None:
+        super().__init__()
+        self.in_c = in_c
+        self.out_c = out_c
+        self.stride = stride
+        self.num_blocks = num_blocks
+        self.branch_a_channels = in_c - self.out_c
+        self.hidden_c = in_c // 2
+        self.out_c = out_c
+        #self.downsample = nn.AvgPool2d(kernel_size=2)
+        self.conv1 = ConvBNAct(in_c, 3 * self.hidden_c, 1, 1) #SPPF(in_c=self.in_c, out_c=self.in_c, kernel_size=5)
+        self.vajra_griva_ds = DSInnerBlock(self.hidden_c, self.hidden_c, num_blocks, False, kernel_1=3, kernel_2=7) #VajraV3GrivaDS(self.hidden_c, self.hidden_c, num_blocks, True)
+        self.vajra_merudanda = VajraV1MerudandaX(self.hidden_c, self.hidden_c, mid_c1, mid_c2, num_blocks)
+        self.conv2 = ConvBNAct(3 * self.hidden_c, out_c, 1, 1)
+
+    def forward(self, inputs):
+        _, _, H, W = inputs[-1].shape
+        H = (H - 1) // self.stride + 1
+        W = (W - 1) // self.stride + 1
+        #downsampled_fm = self.downsample(inputs[0])
+        downsample = [F.interpolate(inp, size=(H, W), mode="nearest") for inp in inputs] #if self.stride > 1 else [F.interpolate(inp, size=(H, W), mode="nearest") for inp in inputs[:-1]] + inputs[-1:]
+        #concatenated_in = torch.sum(torch.stack(downsample), dim=0)
+        #input_fms = [downsampled_fm, inputs[1]]
+        concatenated_in = torch.concat(downsample, dim=1)
+        conv1 = self.conv1(concatenated_in)
+        fm1, fm2, fm3 = conv1.chunk(3, 1)
+        fm2 = self.vajra_griva_ds(fm2)
+        fm3 = self.vajra_merudanda(fm3)
+        conv2 = self.conv2(torch.cat([fm1, fm2, fm3], dim=1))
+        return conv2
+
+    def get_module_info(self):
+        return f"SanlayanVajraMerudandaV2", f"[{self.in_c}, {self.out_c}, {self.stride}, {self.num_blocks}, {self.inner_block}]"
+
 class SanlayanSPPFVajraMerudandaV2(nn.Module):
-    def __init__(self, in_c, out_c, stride=2, num_blocks=2, lite=False, use_sppf=True, inner_block=True) -> None:
+    def __init__(self, in_c, out_c, mid_c1, mid_c2, stride=1, num_blocks=2, lite=False, use_sppf=True, inner_block=True) -> None:
         super().__init__()
         self.in_c = in_c
         self.out_c = out_c
@@ -4889,8 +5037,7 @@ class SanlayanSPPFVajraMerudandaV2(nn.Module):
         self.use_sppf = use_sppf
         self.inner_block = inner_block
         self.sppf = SPPF(in_c=self.in_c, out_c=self.in_c, kernel_size=5) if use_sppf else nn.Identity()
-        self.vajra_merudanda = VajraV2MerudandaBhag3(self.hidden_c, self.hidden_c, num_blocks, True, 0.5, inner_block=inner_block)
-        #self.attn = nn.ModuleList(AttentionBlock(self.hidden_c, self.hidden_c, num_heads=self.hidden_c // 64 if not lite else self.hidden_c // 8) for _ in range(num_blocks))
+        self.vajra_merudanda = VajraV1MerudandaX(self.hidden_c, self.hidden_c, mid_c1, mid_c2, num_blocks)
         self.conv = ConvBNAct(in_c + self.hidden_c, out_c, 1, 1)
 
     def forward(self, inputs):
@@ -4908,6 +5055,74 @@ class SanlayanSPPFVajraMerudandaV2(nn.Module):
 
     def get_module_info(self):
         return f"SanlayanSPPFVajraMerudandaV2", f"[{self.in_c}, {self.out_c}, {self.stride}, {self.num_blocks}, {self.inner_block}]"
+    
+class SanlayanSPPFVajraMerudandaV3(nn.Module):
+    def __init__(self, in_c, out_c, stride=1, num_blocks=2, lite=False, use_sppf=True, shortcut=True, expansion_ratio=0.5, kernel_size=7, use_mlp=False, use_repvgg_dw = False) -> None:
+        super().__init__()
+        self.in_c = in_c
+        self.out_c = out_c
+        self.stride = stride
+        self.num_blocks = num_blocks
+        self.branch_a_channels = in_c - self.out_c
+        self.hidden_c = in_c // 2
+        self.out_c = out_c
+        self.lite = lite
+        self.use_sppf = use_sppf
+        self.sppf = SPPF(in_c=self.in_c, out_c=self.in_c, kernel_size=5) if use_sppf else nn.Identity()
+        self.vajra_merudanda = VajraV1MerudandaBhag15(self.hidden_c, self.hidden_c, num_blocks, shortcut=shortcut, expansion_ratio=expansion_ratio, use_mlp=use_mlp, kernel_size=kernel_size, use_repvgg_dw=use_repvgg_dw)
+        self.conv = ConvBNAct(in_c + self.hidden_c, out_c, 1, 1)
+
+    def forward(self, inputs):
+        _, _, H, W = inputs[-1].shape
+        H = (H - 1) // self.stride + 1
+        W = (W - 1) // self.stride + 1
+        downsample = [F.interpolate(inp, size=(H, W), mode="nearest") for inp in inputs] if self.stride > 1 else [F.interpolate(inp, size=(H, W), mode="nearest") for inp in inputs[:-1]] + inputs[-1:]
+        concatenated_in = torch.sum(torch.stack(downsample), dim=0)
+        sppf = self.sppf(concatenated_in) if self.use_sppf else concatenated_in
+        fm3, fm4 = sppf.chunk(2, 1)
+        fm4 = fm4 + fm3
+        fms = [fm3, fm4, self.vajra_merudanda(fm4)]
+        out = self.conv(torch.cat(fms, 1))
+        return out
+
+    def get_module_info(self):
+        return f"SanlayanSPPFVajraMerudandaV3", f"[{self.in_c}, {self.out_c}, {self.stride}, {self.num_blocks}]"
+
+class SanlayanVajraMerudandaV3(nn.Module):
+    def __init__(self, in_c, out_c, stride=1, num_blocks=2, lite=False, use_sppf=True, shortcut=True, expansion_ratio=0.5, kernel_size=7, use_mlp=False, use_repvgg_dw = False) -> None:
+        super().__init__()
+        self.in_c = in_c
+        self.out_c = out_c
+        self.stride = stride
+        self.num_blocks = num_blocks
+        self.branch_a_channels = in_c - self.out_c
+        self.hidden_c = in_c // 2
+        self.out_c = out_c
+        self.lite = lite
+        self.use_sppf = use_sppf
+        self.conv1 = ConvBNAct(in_c, 3 * self.hidden_c, 1, 1)
+        self.vajra_griva_ds = DSInnerBlock(self.hidden_c, self.hidden_c, num_blocks, False, kernel_1=3, kernel_2=7) #VajraV3GrivaDS(self.hidden_c, self.hidden_c, num_blocks, True)
+        self.vajra_merudanda = VajraV1MerudandaBhag15(self.hidden_c, self.hidden_c, num_blocks, shortcut=shortcut, expansion_ratio=expansion_ratio, use_mlp=use_mlp, kernel_size=kernel_size, use_repvgg_dw=use_repvgg_dw)
+        self.conv2 = ConvBNAct(3 * self.hidden_c, out_c, 1, 1)
+
+    def forward(self, inputs):
+        _, _, H, W = inputs[-1].shape
+        H = (H - 1) // self.stride + 1
+        W = (W - 1) // self.stride + 1
+        #downsampled_fm = self.downsample(inputs[0])
+        downsample = [F.interpolate(inp, size=(H, W), mode="nearest") for inp in inputs]
+        #concatenated_in = torch.sum(torch.stack(downsample), dim=0)
+        #input_fms = [downsampled_fm, inputs[1]]
+        concatenated_in = torch.concat(downsample, dim=1)
+        conv1 = self.conv1(concatenated_in)
+        fm1, fm2, fm3 = conv1.chunk(3, 1)
+        fm2 = self.vajra_griva_ds(fm2)
+        fm3 = self.vajra_merudanda(fm3)
+        conv2 = self.conv2(torch.cat([fm1, fm2, fm3], dim=1))
+        return conv2
+
+    def get_module_info(self):
+        return f"SanlayanVajraMerudandaV3", f"[{self.in_c}, {self.out_c}, {self.stride}, {self.num_blocks}]"
 
 class MBConvEffNet(nn.Module):
     def __init__(self, in_c, out_c, stride=1, expansion_ratio=4, kernel_size=3) -> None:
@@ -7769,7 +7984,7 @@ class VajraV1MerudandaX(nn.Module):
         self.hidden_c = mid_c1 // 2
         self.conv1 = ConvBNAct(in_c, mid_c1, 1, 1)
         self.conv2 = nn.Sequential(VajraV2InnerBlock(mid_c1//2, mid_c2, num_bottleneck_blocks=num_blocks, rep_bottleneck=False, shortcut=True), ConvBNAct(mid_c2, mid_c2, 1, 3)) if not rep_csp else nn.Sequential(RepCSP(mid_c1 // 2, mid_c2, num_blocks), ConvBNAct(mid_c2, mid_c2, 1, 3))
-        self.conv3 = nn.Sequential(VajraV2InnerBlock(mid_c1//2, mid_c2, num_bottleneck_blocks=num_blocks, rep_bottleneck=False, shortcut=True), ConvBNAct(mid_c2, mid_c2, 1, 3)) if not rep_csp else nn.Sequential(RepCSP(mid_c2, mid_c2, num_blocks), ConvBNAct(mid_c2, mid_c2, 1, 3))
+        self.conv3 = nn.Sequential(VajraV2InnerBlock(mid_c2, mid_c2, num_bottleneck_blocks=num_blocks, rep_bottleneck=False, shortcut=True), ConvBNAct(mid_c2, mid_c2, 1, 3)) if not rep_csp else nn.Sequential(RepCSP(mid_c2, mid_c2, num_blocks), ConvBNAct(mid_c2, mid_c2, 1, 3))
         self.conv4 = ConvBNAct(mid_c1 + (2 * mid_c2), out_c, 1, 1)
 
     def forward(self, x):
@@ -8243,3 +8458,18 @@ class Residual(nn.Module):
 
     def forward(self, x):
         return x + self.m(x)
+    
+class AnchorMLP(nn.Module):
+    def __init__(self, c, ratio=2.0):
+        super().__init__()
+        hidden = int(c * ratio)
+        self.mlp = nn.Sequential(
+            nn.Conv1d(c, hidden, 1),
+            nn.SiLU(),
+            nn.Conv1d(hidden, c, 1),
+        )
+
+    def forward(self, x):
+        # x: [B, C, A]
+        return self.mlp(x)
+

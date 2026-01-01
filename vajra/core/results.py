@@ -1,4 +1,4 @@
-# Vayuvahana Technologies Private Limited Vajra, AGPL-3.0 License
+# Vayuvahana Technologies Private Limited VayuAI SDK, AGPL-3.0 License
 
 from copy import deepcopy
 from functools import lru_cache
@@ -125,6 +125,14 @@ class Keypoints(BaseTensor):
     @lru_cache(maxsize=1)
     def xy(self):
         return self.data[..., :2]
+    
+    @property
+    @lru_cache(maxsize=1)
+    def xyn(self) -> torch.Tensor | np.ndarray:
+        xy = self.xy.clone() if isinstance(self.xy, torch.Tensor) else np.copy(self.xy)
+        xy[..., 0] /= self.orig_shape[1]
+        xy[..., 1] /= self.orig_shape[0]
+        return xy
 
     @property
     @lru_cache(maxsize=1)
@@ -231,7 +239,7 @@ class Results(StringOps):
 
     def update(self, boxes=None, masks=None, probs=None, keypoints=None, obb=None):
         if boxes is not None:
-            self.boxes = Boxes(ops.clip_boxes(boxes, self.orig_shape), self.orig_shape)
+            self.boxes = Boxes(boxes=ops.clip_boxes(boxes, self.orig_shape), orig_shape=self.orig_shape)
         if masks is not None:
             self.masks = Masks(masks, self.orig_shape)
         if probs is not None:
@@ -408,7 +416,7 @@ class Results(StringOps):
 
         if texts:
             Path(txt_file).parent.mkdir(parents=True, exist_ok=True)  # make directory
-            with open(txt_file, "a") as f:
+            with open(txt_file, "a", encoding="utf-8") as f:
                 f.writelines(text + "\n" for text in texts)
 
     def save_crop(self, save_dir, file_name=Path("img.jpg")):

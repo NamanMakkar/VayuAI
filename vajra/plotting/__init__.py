@@ -442,7 +442,7 @@ class Annotator:
         Args:
             keypoints (list): list of keypoints data to be plotted
             indices (list): keypoints ids list to be plotted
-            shape (tuple): imgsz for model inference
+            shape (tuple): img_size for model inference
             radius (int): Keypoint radius value
         """
         for i, k in enumerate(keypoints):

@@ -10,7 +10,7 @@ from typing import OrderedDict, List
 from torch.nn.init import xavier_uniform_, constant_ 
 from vajra.utils.dfine_ops import get_contrastive_denoising_training_group
 from vajra.tal.anchor_generator import dist2bbox, dist2rbox, generate_anchors
-from vajra.nn.modules import DepthwiseConvBNAct, ConvMakkarNorm, ConvBNAct, DistributedFocalLoss, ProtoMaskModule, UConv, BNContrastiveHead, ContrastiveHead, ImagePoolingAttention, RepVGGDW, Residual, SwiGLUFFN2, SAVPE
+from vajra.nn.modules import DepthwiseConvBNAct, ConvMakkarNorm, Squeeze_Excite_Layer, ConvBNAct, DistributedFocalLoss, ProtoMaskModule, UConv, BNContrastiveHead, ContrastiveHead, AnchorMLP, ImagePoolingAttention, RepVGGDW, Residual, SwiGLUFFN2, SAVPE
 from vajra.nn.transformer import ScaleAdaptiveDecoderLayer, ScaleAdaptiveTransformerDecoder, MLP, HybridEncoder, TransformerDecoder, TransformerDecoderLayer, Integral
 from vajra.utils import LOGGER, NOT_MACOS14
 from vajra.utils.torch_utils import smart_inference_mode, fuse_conv_and_bn
@@ -18,7 +18,7 @@ from vajra.nn.utils import bias_init_with_prob
 
 class Classification(nn.Module):
     export = False
-    def __init__(self, in_c, out_c, hidden_c=2048, kernel_size=1, stride=1, padding=None, groups=1) -> None:
+    def __init__(self, in_c, out_c, hidden_c=1280, kernel_size=1, stride=1, padding=None, groups=1) -> None:
         super().__init__()
         self.hidden_c = hidden_c
         self.in_c = in_c
@@ -130,24 +130,6 @@ class Detection(nn.Module):
 
     def get_module_info(self):
         return f"Detection", f"[{self.num_classes}, {self.in_channels}]"
-    
-class DetectionV2(Detection):
-    def __init__(self, num_classes=80, in_channels=[]):
-        super().__init__(num_classes, in_channels)
-        c2 = max((8, in_channels[0] // 4, self.reg_max * 4))
-        c3 = max(in_channels[0], min(self.num_classes, 100))
-        self.branch_det = nn.ModuleList(
-            nn.Sequential(ConvMakkarNorm(ch, c2, kernel_size=3),
-                          ConvMakkarNorm(c2, c2, kernel_size=3),
-                          nn.Conv2d(c2, 4*self.reg_max, 1))
-                          for ch in in_channels
-        )
-        self.branch_cls = nn.ModuleList(
-            nn.Sequential(nn.Sequential(ConvMakkarNorm(ch, ch, 1, 3, groups=ch), ConvMakkarNorm(ch, c3, 1, 1)),
-                          nn.Sequential(ConvMakkarNorm(c3, c3, 1, 3, groups=c3), ConvMakkarNorm(c3, c3, 1, 1)),
-                          nn.Conv2d(c3, self.num_classes, 1))
-                          for ch in in_channels
-        )
 
 class Panoptic(Detection):
     def __init__(self, num_classes=80, num_masks=32, sem_nc=93, num_protos=256, in_channels=[]) -> None:
@@ -550,7 +532,7 @@ class DEYODetection(Detection):
         dbox = self.decode_bboxes(self.distributed_focal_loss(box), self.anchors.unsqueeze(0)) * self.strides
         return x, dbox, cls
         
-    def get_decoder_output(self, feats, dbox, cls, imgsz):
+    def get_decoder_output(self, feats, dbox, cls, img_size):
         dbox = dbox.permute(0, 2, 1).contiguous().detach()
         cls = cls.permute(0, 2, 1).contiguous()
         
@@ -561,7 +543,7 @@ class DEYODetection(Detection):
         embed = self.norm(embed)
         
         dec_bboxes = dbox[batch_ind, topk_ind].view(bs, self.num_queries, -1)
-        refer_bbox = dec_bboxes / torch.tensor(imgsz, device=dbox.device)[[1, 0, 1, 0]]
+        refer_bbox = dec_bboxes / torch.tensor(img_size, device=dbox.device)[[1, 0, 1, 0]]
         
         dec_scores = self.decoder(
             embed,
@@ -571,12 +553,12 @@ class DEYODetection(Detection):
         )
         return dec_bboxes, dec_scores, topk_ind
     
-    def forward(self, x, imgsz=None):
+    def forward(self, x, img_size=None):
         if self.stride[0] == 0:
             return super().forward(x)
         feats = self.get_encoder_input(x)
         preds, dbox, cls = self.generate_anchors(x)
-        dec_bboxes, dec_scores, topk_ind = self.get_decoder_output(feats, dbox, cls, imgsz)
+        dec_bboxes, dec_scores, topk_ind = self.get_decoder_output(feats, dbox, cls, img_size)
         x = preds, dec_scores, topk_ind
         if self.training:
             return x
@@ -1220,7 +1202,6 @@ class PEDetection(Detection):
     def get_module_info(self):
         return f"PEDetection", f"[{self.num_classes}, {self.in_channels}, {self.embed}]"
 
-    
 
 class PESegmentation(PEDetection):
     def __init__(self, num_classes=80, num_masks=32, num_protos=256, embed_dim=512, with_bn=False, in_channels=[]):

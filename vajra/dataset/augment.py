@@ -120,6 +120,7 @@ class BaseMixTransform:
         labels["mix_labels"] = mix_labels
 
         # Mosaic or MixUp
+        labels = self._update_label_text(labels)
         labels = self._mix_transform(labels)
         labels.pop("mix_labels", None)
         return labels
@@ -130,7 +131,24 @@ class BaseMixTransform:
 
     def get_indexes(self):
         """Gets a list of shuffled indexes for mosaic augmentation."""
-        raise NotImplementedError
+        raise random.randint(0, len(self.dataset) - 1)
+    
+    @staticmethod
+    def _update_label_text(labels):
+        if "texts" not in labels:
+            return labels
+        
+        mix_texts = [*labels["texts"], *(item for x in labels["mix_labels"] for item in x["texts"])]
+        mix_texts = list({tuple(x) for x in mix_texts})
+        text2id = {text: i for i, text in enumerate(mix_texts)}
+
+        for label in [labels] + labels["mix_labels"]:
+            for i, cls in enumerate(label["cls"].squeeze(-1).tolist()):
+                text = label["texts"][int(cls)]
+                label["cls"][i] = text2id[tuple(text)]
+            label["texts"] = mix_texts
+        return labels
+
 
 class Mosaic(BaseMixTransform):
     """
@@ -141,19 +159,19 @@ class Mosaic(BaseMixTransform):
 
     Attributes:
         dataset: The dataset on which the mosaic augmentation is applied.
-        imgsz (int, optional): Image size (height and width) after mosaic pipeline of a single image. Default to 640.
+        img_size (int, optional): Image size (height and width) after mosaic pipeline of a single image. Default to 640.
         p (float, optional): Probability of applying the mosaic augmentation. Must be in the range 0-1. Default to 1.0.
         n (int, optional): The grid size, either 4 (for 2x2) or 9 (for 3x3).
     """
 
-    def __init__(self, dataset, imgsz=640, p=1.0, n=4):
+    def __init__(self, dataset, img_size=640, p=1.0, n=4):
         """Initializes the object with a dataset, image size, probability, and border."""
         assert 0 <= p <= 1.0, f"The probability should be in range [0, 1], but got {p}."
         assert n in (4, 9), "grid must be equal to 4 or 9."
         super().__init__(dataset=dataset, p=p)
         self.dataset = dataset
-        self.imgsz = imgsz
-        self.border = (-imgsz // 2, -imgsz // 2)  # width, height
+        self.img_size = img_size
+        self.border = (-img_size // 2, -img_size // 2)  # width, height
         self.n = n
 
     def get_indexes(self, buffer=True):
@@ -174,7 +192,7 @@ class Mosaic(BaseMixTransform):
     def _mosaic3(self, labels):
         """Create a 1x3 image mosaic."""
         mosaic_labels = []
-        s = self.imgsz
+        s = self.img_size
         for i in range(3):
             labels_patch = labels if i == 0 else labels["mix_labels"][i - 1]
             # Load image
@@ -197,7 +215,7 @@ class Mosaic(BaseMixTransform):
             img3[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]  # img3[ymin:ymax, xmin:xmax]
             # hp, wp = h, w  # height, width previous for next iteration
 
-            # Labels assuming imgsz*2 mosaic size
+            # Labels assuming img_size*2 mosaic size
             labels_patch = self._update_labels(labels_patch, padw + self.border[0], padh + self.border[1])
             mosaic_labels.append(labels_patch)
         final_labels = self._cat_labels(mosaic_labels)
@@ -208,7 +226,7 @@ class Mosaic(BaseMixTransform):
     def _mosaic4(self, labels):
         """Create a 2x2 image mosaic."""
         mosaic_labels = []
-        s = self.imgsz
+        s = self.img_size
         yc, xc = (int(random.uniform(-x, 2 * s + x)) for x in self.border)  # mosaic center x, y
         for i in range(4):
             labels_patch = labels if i == 0 else labels["mix_labels"][i - 1]
@@ -244,7 +262,7 @@ class Mosaic(BaseMixTransform):
     def _mosaic9(self, labels):
         """Create a 3x3 image mosaic."""
         mosaic_labels = []
-        s = self.imgsz
+        s = self.img_size
         hp, wp = -1, -1  # height, width previous
         for i in range(9):
             labels_patch = labels if i == 0 else labels["mix_labels"][i - 1]
@@ -281,7 +299,7 @@ class Mosaic(BaseMixTransform):
             img9[y1:y2, x1:x2] = img[y1 - padh :, x1 - padw :]  # img9[ymin:ymax, xmin:xmax]
             hp, wp = h, w  # height, width previous for next iteration
 
-            # Labels assuming imgsz*2 mosaic size
+            # Labels assuming img_size*2 mosaic size
             labels_patch = self._update_labels(labels_patch, padw + self.border[0], padh + self.border[1])
             mosaic_labels.append(labels_patch)
         final_labels = self._cat_labels(mosaic_labels)
@@ -304,7 +322,7 @@ class Mosaic(BaseMixTransform):
             return {}
         cls = []
         instances = []
-        imgsz = self.imgsz * 2  # mosaic imgsz
+        img_size = self.img_size * 2  # mosaic img_size
         for labels in mosaic_labels:
             cls.append(labels["cls"])
             instances.append(labels["instances"])
@@ -312,14 +330,16 @@ class Mosaic(BaseMixTransform):
         final_labels = {
             "im_file": mosaic_labels[0]["im_file"],
             "ori_shape": mosaic_labels[0]["ori_shape"],
-            "resized_shape": (imgsz, imgsz),
+            "resized_shape": (img_size, img_size),
             "cls": np.concatenate(cls, 0),
             "instances": Instances2d.concatenate(instances, axis=0),
             "mosaic_border": self.border,
         }
-        final_labels["instances"].clip(imgsz, imgsz)
+        final_labels["instances"].clip(img_size, img_size)
         good = final_labels["instances"].remove_zero_area_boxes()
         final_labels["cls"] = final_labels["cls"][good]
+        if "texts" in mosaic_labels[0]:
+            final_labels["texts"] = mosaic_labels[0]["texts"]
         return final_labels
 
 
@@ -789,11 +809,21 @@ class LetterBox:
 
         if shape[::-1] != new_unpad:  # resize
             img = cv2.resize(img, new_unpad, interpolation=cv2.INTER_LINEAR)
+            if img.ndim == 2:
+                img = img[..., None]
+        
         top, bottom = int(round(dh - 0.1)) if self.center else 0, int(round(dh + 0.1))
         left, right = int(round(dw - 0.1)) if self.center else 0, int(round(dw + 0.1))
-        img = cv2.copyMakeBorder(
-            img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(114, 114, 114)
-        )  # add border
+        h, w, c = img.shape
+        if c == 3:
+            img = cv2.copyMakeBorder(
+                img, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(114, 114, 114)
+            )  # add border
+        else:
+            pad_img = np.full((h + top + bottom, w + left + right, c), fill_value=(114, 114, 114), dtype=img.dtype)
+            pad_img[top: top + h, left: left + w] = img
+            img = pad_img
+
         if labels.get("ratio_pad"):
             labels["ratio_pad"] = (labels["ratio_pad"], (left, top))  # for evaluation
 
@@ -1135,16 +1165,16 @@ class LoadVisualPrompt:
             visuals[idx] = torch.logical_or(visuals[idx], mask)
         return visuals
 
-def vajra_transforms(dataset, imgsz, hyp, stretch=False):
+def vajra_transforms(dataset, img_size, hyp, stretch=False):
     """Convert images to a size suitable for VajraV1 training."""
-    mosaic = Mosaic(dataset, imgsz=imgsz, p=hyp.mosaic)
+    mosaic = Mosaic(dataset, img_size=img_size, p=hyp.mosaic)
     affine = RandomPerspective(
         degrees=hyp.degrees,
         translate=hyp.translate,
         scale=hyp.scale,
         shear=hyp.shear,
         perspective=hyp.perspective,
-        pre_transform=None if stretch else LetterBox(new_shape=(imgsz, imgsz)),
+        pre_transform=None if stretch else LetterBox(new_shape=(img_size, img_size)),
     )
 
     pre_transform = Compose([mosaic, affine])
@@ -1154,7 +1184,7 @@ def vajra_transforms(dataset, imgsz, hyp, stretch=False):
         pre_transform.append(
             CopyPaste(
                 dataset,
-                pre_transform=Compose([Mosaic(dataset, imgsz=imgsz, p=hyp.mosaic), affine]),
+                pre_transform=Compose([Mosaic(dataset, img_size=img_size, p=hyp.mosaic), affine]),
                 p=hyp.copy_paste,
                 mode=hyp.copy_paste_mode,
             )

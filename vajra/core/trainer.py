@@ -1,6 +1,7 @@
-# Vayuvahana Technologies Private Limited Vajra, AGPL-3.0 License
+# Vayuvahana Technologies Private Limited VayuAI SDK, AGPL-3.0 License
 
 import os
+import gc
 import sys
 import time
 import math
@@ -38,7 +39,7 @@ from vajra.utils.files import get_latest_run
 from vajra.dataset.utils import check_cls_dataset, check_det_dataset
 from vajra.utils.torch_utils import (
     TORCH_2_4, EarlyStopping, ModelEMA, de_parallel, select_device, smart_DDP, one_cycle, init_seeds, strip_optimizer, autocast,
-    smart_resume, torch_distributed_zero_first)
+    smart_resume, torch_distributed_zero_first, unset_deterministic)
 
 class Trainer:
     def __init__(self, config=HYPERPARAMS_CFG_DICT, model_configuration=None, _callbacks=None) -> None:
@@ -71,24 +72,24 @@ class Trainer:
         if self.device.type in ('cpu', 'mps'):
             self.args.workers = 0
 
-        self.model = check_model_file_from_stem(self.args.model, self.args.pretrained)
+        self.model = check_model_file_from_stem(self.args.model)
 
-        try:
-            if self.args.task == "classify":
-                self.data = check_cls_dataset(self.args.data)
-            elif self.args.data.split(".")[-1] in ("yaml", "yml") or self.args.task in (
-                "detect",
-                "segment",
-                "pose",
-                "obb",
-            ):
-                self.data = check_det_dataset(self.args.data)
-                if "yaml_file" in self.data:
-                    self.args.data = self.data["yaml_file"]
-        except Exception as e:
-            raise RuntimeError(f"Dataset '{clean_url(self.args.data)}' error! {e}") from e
+        #try:
+            #if self.args.task == "classify":
+                #self.data = check_cls_dataset(self.args.data)
+            #elif self.args.data.split(".")[-1] in ("yaml", "yml") or self.args.task in (
+                #"detect",
+                #"segment",
+                #"pose",
+                #"obb",
+            #):
+                #self.data = check_det_dataset(self.args.data)
+                #if "yaml_file" in self.data:
+                    #self.args.data = self.data["yaml_file"]
+        #except Exception as e:
+            #raise RuntimeError(f"Dataset '{clean_url(self.args.data)}' error! {e}") from e
         
-        self.trainset, self.testset = self.get_dataset(self.data)
+        self.data = self.get_dataset()
         self.ema = None
         self.lf = None
         self.scheduler = None
@@ -158,7 +159,7 @@ class Trainer:
 
         os.environ["TORCH_NCCL_BLOCKING_WAIT"] = "1"
         dist.init_process_group(
-            "nccl" if dist.is_nccl_available() else "gloo",
+            backend="nccl" if dist.is_nccl_available() else "gloo",
             timeout=timedelta(seconds=10800),
             rank = RANK,
             world_size=world_size,
@@ -213,10 +214,10 @@ class Trainer:
             self.args.batch = self.batch_size = check_train_batch_size(self.model, self.args.img_size, self.amp)
         
         batch_size = self.batch_size // max(world_size, 1)
-        self.train_loader = self.get_dataloader(self.trainset, batch_size=batch_size, rank=RANK, mode="train")
-        if RANK in (-1, 0):
+        self.train_loader = self.get_dataloader(self.data["train"], batch_size=batch_size, rank=RANK, mode="train")
+        if RANK in {-1, 0}:
             self.test_loader = self.get_dataloader(
-                self.testset, batch_size=batch_size if self.args.task == "obb" else batch_size * 2, rank=-1, mode="val"
+                self.data.get("val") or self.data.get("test"), batch_size=batch_size if self.args.task == "obb" else batch_size * 2, rank=-1, mode="val"
             )
 
             self.validator = self.get_validator()
@@ -244,6 +245,31 @@ class Trainer:
         self.scheduler.last_epoch = self.start_epoch - 1
         self.run_callbacks("on_pretrain_routine_end")
 
+    def _get_memory(self, fraction=False):
+        memory, total = 0, 0
+        if self.device.type == "mps":
+            memory = torch.mps.driver_allocated_memory()
+            if fraction:
+                return __import__("psutil").virtual_memory().percent / 100
+        elif self.device.type != "cpu":
+            memory = torch.cuda.memory_reserved()
+            if fraction:
+                total = torch.cuda.get_device_properties(self.device).total_memory
+        return ((memory / total) if total > 0 else 0) if fraction else (memory / 2**30)
+
+    def _clear_memory(self, threshold: float = None):
+        if threshold:
+            assert 0 <= threshold <= 1, "Threshold must be between 0 and 1."
+            if self._get_memory(fraction=True) <= threshold:
+                return
+        gc.collect()
+        if self.device.type == "mps":
+            torch.mps.empty_cache()
+        elif self.device.type == "cpu":
+            return
+        else:
+            torch.cuda.empty_cache()
+
     def _model_train(self):
         self.model.train()
 
@@ -252,6 +278,162 @@ class Trainer:
                 m.eval()
 
 
+    """def _do_train(self, world_size=1):
+        if world_size > 1:
+            self._setup_ddp(world_size)
+        self._setup_train(world_size)
+        num_batches = len(self.train_loader)
+        num_warmup_iters = max(round(self.args.warmup_epochs * num_batches), 100) if self.args.warmup_epochs > 0 else -1
+        last_opt_step = -1
+        self.epoch_time = None
+        self.epoch_start_time = time.time()
+        self.train_start_time = time.time()
+        self.run_callbacks("on_train_start")
+        LOGGER.info(
+            f'Image size {self.args.img_size} train, {self.args.img_size} val\n'
+            f'Using {self.train_loader.num_workers * (world_size or 1)} dataloader workers\n'
+            f'Logging results to {colorstr("bold", self.save_dir)}\n'
+            f'Starting training for ' + (f'{self.args.time} hours...' if self.args.time else f"{self.epochs} epochs...")
+        )
+
+        if self.args.close_mosaic:
+            base_idx = (self.epochs - self.args.close_mosaic) * num_batches
+            self.plot_idx.extend([base_idx, base_idx+1, base_idx+2])
+        epoch = self.start_epoch
+        self.optimizer.zero_grad()
+        while True:
+            self.epoch = epoch
+            self.run_callbacks("on_train_epoch_start")
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self.scheduler.step()
+            
+            self._model_train()
+            if RANK != -1:
+                self.train_loader.sampler.set_epoch(epoch)
+            pbar = enumerate(self.train_loader)
+            if epoch == (self.epochs - self.args.close_mosaic):
+                self._close_dataloader_mosaic()
+                self.train_loader.reset()
+
+            if (self.args.scale_change_bool and self.epoch == self.args.scale_change_epoch):
+                self._change_dataloader_img_scale()
+                self.train_loader.reset()
+
+            if RANK in (-1, 0):
+                LOGGER.info(self.progress_string())
+                pbar = TQDM(enumerate(self.train_loader), total=num_batches)
+            self.tloss = None
+            
+            for i, batch in pbar:
+                self.run_callbacks("on_train_batch_start")
+                num_iters = i + num_batches * epoch
+                if num_iters <= num_warmup_iters:
+                    x_interp = [0, num_warmup_iters]
+                    self.accumulate = max(1, int(np.interp(num_iters, x_interp, [1, self.args.nominal_batch_size / self.batch_size]).round()))
+                    for j, x in enumerate(self.optimizer.param_groups):
+                        x["lr"] = np.interp(num_iters, x_interp, [self.args.warmup_bias_lr if j==0 else 0.0, x["initial_lr"] * self.lf(epoch)])
+                        if "momentum" in x:
+                            x["momentum"] = np.interp(num_iters, x_interp, [self.args.warmup_momentum, self.args.momentum])
+
+                with autocast(self.amp):
+                    batch = self.preprocess_batch(batch)
+                    self.loss, self.loss_items = self.model(batch)
+                    if RANK != -1:
+                        self.loss *= world_size
+                    self.tloss = (
+                        (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None else self.loss_items
+                    )
+
+                self.scaler.scale(self.loss).backward()
+
+                if num_iters - last_opt_step >= self.accumulate:
+                    self.optimizer_step()
+                    last_opt_step = num_iters
+
+                    if self.args.time:
+                        self.stop = (time.time() - self.train_start_time) > (self.args.time * 3600)
+                        if RANK != -1:
+                            broadcast_list = [self.stop if RANK == 0 else None]
+                            dist.broadcast_object_list(broadcast_list, 0)
+                            self.stop = broadcast_list[0]
+                        if self.stop:
+                            break
+                
+                memory = f"{self._get_memory():.3g}G" #f"{torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}G"
+                loss_len = self.tloss.shape[0] if len(self.tloss.shape) else 1
+                losses = self.tloss if loss_len > 1 else torch.unsqueeze(self.tloss, 0)
+                if RANK in {-1, 0}:
+                    pbar.set_description(
+                        ("%11s" * 2 + "%11.4g" * (2 + loss_len))
+                        % (f"{epoch + 1} / {self.epochs}", memory, *losses, batch["cls"].shape[0], batch["img"].shape[-1])
+                    )
+                    self.run_callbacks("on_batch_end")
+                    if self.args.plots and num_iters in self.plot_idx:
+                        self.plot_training_samples(batch, num_iters)
+                self.run_callbacks("on_train_batch_end")
+                
+            self.lr = {f"lr/pg{ir}": x['lr'] for ir, x in enumerate(self.optimizer.param_groups)}
+            self.run_callbacks("on_train_epoch_end")
+            if RANK in {-1, 0}:
+                final_epoch = epoch + 1 >= self.epochs
+                self.ema.update_attr(self.model, include=["yaml", "num_classes", "args", "names", "stride", "class_weights"])
+
+                if (self.args.val and ((epoch + 1) >= self.args.val_start) and (((epoch + 1) % self.args.val_period == 0) or (self.epochs - epoch) <= 10)) \
+                    or final_epoch or self.stopper.possible_stop or self.stop:
+                    self._clear_memory(threshold=0.5)
+                    self.metrics, self.fitness = self.validate()
+                self.save_metrics(metrics={**self.label_loss_items(self.tloss), **self.metrics, **self.lr})
+                self.stop |= self.stopper(epoch + 1, self.fitness) or final_epoch
+
+                if self.args.time:
+                    self.stop |= (time.time() - self.train_start_time) > (self.args.time * 3600)
+                    
+                if self.args.save or final_epoch:
+                    self.save_model()
+                    self.run_callbacks("on_model_save")
+
+            t = time.time()
+            self.epoch_time = t - self.epoch_start_time
+            self.epoch_start_time = t
+
+            #with warnings.catch_warnings():
+                #warnings.simplefilter("ignore")
+
+            if self.args.time:
+                mean_epoch_time = (t - self.train_start_time) / (epoch - self.start_epoch + 1)
+                self.epochs = self.args.epochs = math.ceil(self.args.time * 3600 / mean_epoch_time)
+                self._setup_scheduler()
+                self.scheduler.last_epoch = self.epoch
+                self.stop |= epoch >= self.epochs
+                #self.scheduler.step()
+            self.run_callbacks("on_fit_epoch_end")
+            self._clear_memory(0.5) #torch.cuda.empty_cache()
+
+            # Early Stopping
+            if RANK != -1:
+                broadcast_list = [self.stop if RANK == 0 else None]
+                dist.broadcast_object_list(broadcast_list, 0)
+                self.stop = broadcast_list[0]
+            if self.stop or (epoch == self.args.stop_epoch):
+                break
+
+            epoch += 1
+            
+        if RANK in (-1, 0):
+            LOGGER.info(
+                f"\n{epoch - self.start_epoch + 1} epochs completed in "
+                f"{(time.time() - self.train_start_time) / 3600:.3f} hours."  
+            )
+
+            self.final_eval()
+            if self.args.plots:
+                self.plot_metrics()
+            self.run_callbacks("on_train_end")
+        self._clear_memory()
+        unset_deterministic()
+        self.run_callbacks("teardown")"""
+    
     def _do_train(self, world_size=1):
         if world_size > 1:
             self._setup_ddp(world_size)
@@ -424,9 +606,36 @@ class Trainer:
         if (self.save_period > 0) and (self.epoch > 0) and (self.epoch % self.save_period == 0):
             torch.save(checkpoint, self.weights_dir / f"epoch{self.epoch}-{str(Path(self.args.model).stem)}.pt")
 
-    @staticmethod
-    def get_dataset(data):
-        return data["train"], data.get("val") or data.get("test")
+    #@staticmethod
+    def get_dataset(self):
+        try:
+            if self.args.task == "classify":
+                data = check_cls_dataset(self.args.data)
+            elif self.args.data.rsplit(".", 1)[-1] == "ndjson":
+                import asyncio
+                from vajra.dataset.converter import convert_ndjson_to_yolo
+                yaml_path = asyncio.run(convert_ndjson_to_yolo(self.args.data))
+                self.args.data = str(yaml_path)
+                data = check_det_dataset(self.args.data)
+            elif self.args.data.rsplit(".", 1)[-1] in {"yaml", "yml"} or self.args.task in {
+                "detect",
+                "segment",
+                "pose",
+                "obb",
+                "small_obj_detect"
+            }:
+                data = check_det_dataset(self.args.data) if self.args.task != "small_obj_detect" else check_det_dataset(self.args.data, add_kpts=True)
+                if "yaml_file" in data:
+                    self.args.data = data["yaml_file"]
+        except Exception as e:
+            raise RuntimeError(f"Dataset '{clean_url(self.args.data)}' error! {e}") from e
+        
+        if self.args.single_cls:
+            LOGGER.info("Overriding class names with single class.")
+            data["names"] = {0: "item"}
+            data["nc"] = 1
+
+        return data #data["train"], data.get("val") or data.get("test")
 
     def setup_model(self):    
         if isinstance(self.model, torch.nn.Module):
@@ -437,6 +646,8 @@ class Trainer:
         checkpoint = None
         if str(model).endswith(".pt"):
             weights, checkpoint = load_weight(model)
+        elif isinstance(self.args.pretrained, (str, Path)):
+            weights, _ = load_weight(self.args.pretrained)
         self.model = self.get_model(model_name=self.args.model, weights=weights, verbose=RANK == -1)
         return checkpoint
 

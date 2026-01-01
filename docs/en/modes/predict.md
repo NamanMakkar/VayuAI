@@ -79,7 +79,7 @@ VajraV1 can process different types of input sources for inference, as shown in 
 | Source                                                | Example                                    | Type            | Notes                                                                                       |
 | ----------------------------------------------------- | ------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------- |
 | image                                                 | `'image.jpg'`                              | `str` or `Path` | Single image file.                                                                          |
-| URL                                                   | `'https://vayuvahanatechnologies.com/images/bus.jpg'` | `str`           | URL to an image.                                                                            |
+| URL                                                   | `'https://vayuvahanatechnologies.in/images/bus.jpg'` | `str`           | URL to an image.                                                                            |
 | screenshot                                            | `'screen'`                                 | `str`           | Capture a screenshot.                                                                       |
 | PIL                                                   | `Image.open('image.jpg')`                  | `PIL.Image`     | HWC format with RGB channels.                                                               |
 | OpenCV | `cv2.imread('image.jpg')`                  | `np.ndarray`    | HWC format with BGR channels `uint8 (0-255)`.                                               |
@@ -140,7 +140,7 @@ Below are code examples for using each source type:
         model = Vajra("vajra-v1-nano-det.pt")
 
         # Define remote image or video URL
-        source = "https://vayuvahanatechnologies.com/images/bus.jpg"
+        source = "https://vayuvahanatechnologies.in/images/bus.jpg"
 
         # Run inference on the source
         results = model(source)  # list of Results objects
@@ -383,7 +383,7 @@ Below are code examples for using each source type:
     model = Vajra("vajra-v1-nano-det.pt")
 
     # Run inference on 'bus.jpg' with arguments
-    model.predict("https://vayuvahanatechnologies.com/images/bus.jpg", save=True, img_size=320, conf=0.5)
+    model.predict("https://vayuvahanatechnologies.in/images/bus.jpg", save=True, img_size=320, conf=0.5)
     ```
 
 Inference arguments:
@@ -448,11 +448,11 @@ All VayuAI `predict()` calls will return a list of `Results` objects:
     model = Vajra("vajra-v1-nano-det.pt")
 
     # Run inference on an image
-    results = model("https://vayuvahanatechnologies.com/images/bus.jpg")
+    results = model("https://vayuvahanatechnologies.in/images/bus.jpg")
     results = model(
         [
-            "https://vayuvahanatechnologies.com/images/bus.jpg",
-            "https://vayuvahanatechnologies.com/images/zidane.jpg",
+            "https://vayuvahanatechnologies.in/images/bus.jpg",
+            "https://vayuvahanatechnologies.in/images/zidane.jpg",
         ]
     )  # batch inference
     ```
@@ -510,7 +510,7 @@ For more details see the [`Results` class documentation](../reference/core/resul
     model = Vajra("vajra-v1-nano-det.pt")
 
     # Run inference on an image
-    results = model("https://vayuvahanatechnologies.com/images/bus.jpg")  # results list
+    results = model("https://vayuvahanatechnologies.in/images/bus.jpg")  # results list
 
     # View results
     for r in results:
@@ -549,7 +549,7 @@ For more details see the [`Boxes` class documentation](../reference/core/results
     model = Vajra("vajra-v1-nano-seg.pt")
 
     # Run inference on an image
-    results = model("https://vayuvahanatechnologies.com/images/bus.jpg")  # results list
+    results = model("https://vayuvahanatechnologies.in/images/bus.jpg")  # results list
 
     # View results
     for r in results:
@@ -582,7 +582,7 @@ For more details see the [`Masks` class documentation](../reference/core/results
     model = Vajra("vajra-v1-nano-pose.pt")
 
     # Run inference on an image
-    results = model("https://vayuvahanatechnologies.com/images/bus.jpg")  # results list
+    results = model("https://vayuvahanatechnologies.in/images/bus.jpg")  # results list
 
     # View results
     for r in results:
@@ -616,7 +616,7 @@ For more details see the [`Keypoints` class documentation](../reference/core/res
     model = Vajra("vajra-v1-nano-cls.pt")
 
     # Run inference on an image
-    results = model("https://vayuvahanatechnologies.com/images/bus.jpg")  # results list
+    results = model("https://vayuvahanatechnologies.in/images/bus.jpg")  # results list
 
     # View results
     for r in results:
@@ -651,7 +651,7 @@ For more details see the [`Probs` class documentation](../reference/core/results
     model = Vajra("vajra-v1-nano-obb.pt")
 
     # Run inference on an image
-    results = model("https://vayuvahanatechnologies.com/images/boats.jpg")  # results list
+    results = model("https://vayuvahanatechnologies.in/images/boats.jpg")  # results list
 
     # View results
     for r in results:
@@ -691,7 +691,7 @@ The `plot()` method in `Results` objects facilitates visualization of prediction
     model = Vajra("vajra-v1-nano-det.pt")
 
     # Run inference on 'bus.jpg'
-    results = model(["https://vayuvahanatechnologies.com/images/bus.jpg", "https://vayuvahanatechnologies.com/images/zidane.jpg"])  # results list
+    results = model(["https://vayuvahanatechnologies.in/images/bus.jpg", "https://vayuvahanatechnologies.in/images/zidane.jpg"])  # results list
 
     # Visualize the results
     for i, r in enumerate(results):
@@ -813,7 +813,7 @@ Vayuvahana Technologies VajraV1 is a state-of-the-art model for real-tim object 
 
 ### How can I run inference using Vayuvahana Technologies VajraV1 on different data sources?
 
-Vayuvahana Technologies VajraV1 can process a wide range of data source, including individual images, videos, directories, URLs and streams. You can specify the data sources in the `model.predict()` call. For example, use `'image.jpg'` for a local image or `'https://vayuvahanatechnologies.com/images/bus.jpg'` for a URL. Check out the detailed examples for various inference sources in the documentation.
+Vayuvahana Technologies VajraV1 can process a wide range of data source, including individual images, videos, directories, URLs and streams. You can specify the data sources in the `model.predict()` call. For example, use `'image.jpg'` for a local image or `'https://vayuvahanatechnologies.in/images/bus.jpg'` for a URL. Check out the detailed examples for various inference sources in the documentation.
 
 ### How do I optimize VajraV1 inference speed and memory usage?
 

@@ -80,7 +80,7 @@ Exporting a VajraV1 model to ONNX format is straightforward with the VayuAI SDK.
 
         # Load a model
         model = Vajra("vajra-v1-nano-det.pt")  # load an official model
-        model = YOLO("path/to/best-vajra-v1-nano-det.pt")  # load a custom trained model
+        model = Vajra("path/to/best-vajra-v1-nano-det.pt")  # load a custom trained model
 
         # Export the model
         model.export(format="onnx")

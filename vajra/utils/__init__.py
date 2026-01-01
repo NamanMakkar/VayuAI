@@ -62,9 +62,11 @@ PYTHON_VERSION = platform.python_version()
 TORCH_VERSION = str(torch.__version__) 
 TORCHVISION_VERSION = importlib.metadata.version("torchvision")
 HELP_MSG = """
-            1. Install the Vajra package
+            1. Install the Vajra package from GitHub
 
-                pip install vajra
+                git clone https://github.com/NamanMakkar/VayuAI.git
+                cd VayuAI/
+                pip install .
 
             2. Use the SDK
 

@@ -17,6 +17,7 @@ from vajra.utils import ARM64, LINUX, LOGGER, ROOT, yaml_load
 from vajra.checks import check_requirements, check_suffix, check_version, check_yaml
 from vajra.utils.downloads import attempt_download_vajra, is_url, attempt_download_asset
 from vajra.dataset.utils import check_class_names, default_class_names
+from vajra.ops import non_max_suppression
 
 class Backend(nn.Module):
     @torch.no_grad()
@@ -28,8 +29,7 @@ class Backend(nn.Module):
         w = str(weights[0] if isinstance(weights, list) else weights)
         nn_module = isinstance(weights, torch.nn.Module)
 
-        (pt, jit, onnx, xml, engine, coreml, saved_model, pb, tflite,
-        edgetpu, tfjs, paddle, ncnn, triton, ) = self._model_type(w)
+        (pt, jit, onnx, xml, engine, coreml, saved_model, pb, tflite, edgetpu, tfjs, paddle, ncnn, pte, triton, ) = self._model_type(w)
 
         fp16 &= pt or jit or onnx or xml or engine or nn_module or triton
         nhwc = coreml or saved_model or pb or tflite or edgetpu
@@ -153,11 +153,12 @@ class Backend(nn.Module):
                 try:
                     meta_len = int.from_bytes(f.read(4), byteorder="little")  # read metadata length
                     metadata = json.loads(f.read(meta_len).decode("utf-8"))  # read metadata
+                    dla = metadata.get("dla", None)
+                    if dla is not None:
+                        runtime.DLA_core = int(dla)
                 except UnicodeDecodeError:
                     f.seek(0)
-                dla = metadata.get("dla", None)
-                if dla is not None:
-                    runtime.DLA_core = int(dla)
+                
                 model = runtime.deserialize_cuda_engine(f.read())  # read engine
             try:
                 context = model.create_execution_context()
@@ -210,6 +211,7 @@ class Backend(nn.Module):
             import coremltools as ct
 
             model = ct.models.MLModel(w)
+            dynamic = model.get_spec().description.input[0].type.HasField("multiArrayType")
             metadata = dict(model.user_defined_metadata)
 
         elif saved_model:
@@ -235,6 +237,10 @@ class Backend(nn.Module):
             with open(w, "rb") as f:
                 gd.ParseFromString(f.read())
             frozen_func = wrap_frozen_graph(gd, inputs="x:0", outputs=gd_outputs(gd))
+            try:
+                metadata = next(Path(w).resolve().parent.rglob(f"{Path(w).stem}_saved_model*/metadata.yaml"))
+            except StopIteration:
+                pass
 
         elif tflite or edgetpu:
             try:
@@ -244,11 +250,13 @@ class Backend(nn.Module):
 
                 Interpreter, load_delegate = tf.lite.Interpreter, tf.lite.experimental.load_delegate
             if edgetpu:
+                device = device[3:] if str(device).startswith("tpu") else ":0"
                 LOGGER.info(f"Loading {w} for Tensorflow Lite Edge TPU inference...")
                 delegate = {"Linux": "libedgetpu.so.1", "Darwin": "libedgetpu.1.dylib", "Windows": "edgetpu.dll"}[
                     platform.system()
                 ]
-                interpreter = Interpreter(model_path=w, experimental_delegates=[load_delegate(delegate)])
+                interpreter = Interpreter(model_path=w, experimental_delegates=[load_delegate(delegate, options={"device": device})])
+                device="cpu"
             else:
                 LOGGER.info(f"Loading {w} for TensorFlow Lite inference...")
                 interpreter = Interpreter(model_path=w)
@@ -320,9 +328,10 @@ class Backend(nn.Module):
             stride = metadata["stride"]
             task = metadata["task"]
             batch = metadata["batch"]
-            imgsz = metadata["img_size"]
+            img_size = metadata["img_size"]
             names = metadata["names"]
-            kpt_shape = metadata.get("kpt_shape")
+            kpt_shape = metadata.get("keypoint_shape")
+            dynamic = metadata.get("args", {}).get("dynamic", dynamic)
         elif not (pt or triton or nn_module):
             LOGGER.warning(f"WARNING! Metadata not found for 'model={weights}'")
 
@@ -419,20 +428,23 @@ class Backend(nn.Module):
         
         elif self.coreml:
             img = img[0].cpu().numpy()
-            img_pil = Image.fromarray((img * 255).astype("uint8"))
-            y = self.model.predict({"image": img_pil})
+            if self.dynamic:
+                img = img.transpose(0, 3, 1, 2)
+            else:
+                img = Image.fromarray((img * 255).astype("uint8"))
+            y = self.model.predict({"image": img})
 
             if "confidence" in y:
-                raise TypeError(
-                    "Vajra only supports inference of non-pipelined CoreML models exported with"
-                    f"'nms=False', but 'model={w}' has an NMS pipeline created by an 'nms=True' export."
-                )
+                from vajra.ops import xywh2xyxy
 
-            elif len(y) == 1:
+                box = xywh2xyxy(y["coordinates"] * [[w, h, w, h]])
+                cls = y["confidence"].argmax(1, keepdims=True)
+                y = np.concatenate((box, np.take_along_axis(y["confidence"], cls, axis=1), cls), 1)[None]
+            else:
                 y = list(y.values())
             
-            elif len(y) == 2:
-                y = list(reversed(y.values()))
+            if len(y) == 2 and len(y[1].shape) != 4:
+                y = list(reversed(y))
 
         elif self.paddle:
             img = img.cpu().numpy().astype(np.float32)
@@ -444,7 +456,7 @@ class Backend(nn.Module):
             mat_in = self.pyncnn.Mat(img[0].cpu().numpy())
             with self.net.create_extractor() as extractor:
                 extractor.input(self.net.input_names()[0], mat_in)
-                y = [np.array(extractor.extract(x)[1])[None] for x in self.net.output_names()]
+                y = [np.array(extractor.extract(x)[1])[None] for x in sorted(self.net.output_names())]
         
         elif self.triton:
             img = img.cpu().numpy()
@@ -453,16 +465,16 @@ class Backend(nn.Module):
         else:
             img = img.cpu().numpy()
             if self.saved_model:
-                y = self.model(img, training=False) if self.keras else self.model(img)
+                y = self.model(img, training=False) if self.keras else self.model.serving_default(img)
                 if not isinstance(y, list):
                     y = [y]
             
             elif self.pb:
                 y = self.frozen_func(x=self.tf.constant(img))
-                if len(y) == 2 and len(self.names) == 999:
-                    index_protos, index_boxes = (0, 1) if len(y[0].shape) == 4 else (1, 0)
-                    num_classes = y[index_boxes].shape[1] - y[index_protos].shape[3] - 4
-                    self.names = {i: f"class{i}" for i in range(num_classes)}
+                #if len(y) == 2 and len(self.names) == 999:
+                    #index_protos, index_boxes = (0, 1) if len(y[0].shape) == 4 else (1, 0)
+                    #num_classes = y[index_boxes].shape[1] - y[index_protos].shape[3] - 4
+                    #self.names = {i: f"class{i}" for i in range(num_classes)}
 
             else:
                 details = self.input_details[0]
@@ -480,9 +492,12 @@ class Backend(nn.Module):
                     if integer:
                         scale, zero_point = output["quantization"]
                         x = (x.astype(np.float32) - zero_point) * scale
-                    if x.ndim > 2:
+                    if x.ndim == 3:
                         x[:, [0, 2]] *= w
                         x[:, [1, 3]] *= h
+                        if self.task == "pose":
+                            x[:, 5::3] *= w
+                            x[:, 6::3] *= h
                     y.append(x)
             
             if len(y) == 2:
@@ -494,6 +509,10 @@ class Backend(nn.Module):
 
         
         if isinstance(y, (list, tuple)):
+            if len(self.names) == 999 and (self.task == "segment" or len(y) == 2):
+                #index_protos, index_boxes = (0, 1) if len(y[0].shape) == 4 else (1, 0)
+                num_classes = y[0].shape[1] - y[1].shape[1] - 4 #y[index_boxes].shape[1] - y[index_protos].shape[3] - 4
+                self.names = {i: f"class{i}" for i in range(num_classes)}
             return self.from_numpy(y[0]) if len(y) == 1 else [self.from_numpy(x) for x in y]
         else:
             return self.from_numpy(y)
@@ -507,12 +526,15 @@ class Backend(nn.Module):
             img = torch.empty(*img_size, dtype=torch.half if self.fp16 else torch.float, device=self.device)
             for _ in range(2 if self.jit else 1):
                 self.forward(img)
+                warmup_boxes = torch.rand(1, 84, 16, device=self.device)
+                warmup_boxes[:, :4] *= img_size[-1]
+                non_max_suppression(warmup_boxes)
 
     @staticmethod
     def _model_type(p="path/to/model.pt"):
         from vajra.core.exporter import export_formats
 
-        suffix = list(export_formats().Suffix)
+        suffix = list(export_formats()["Suffix"])
         if not is_url(p) and not isinstance(p, str):
             check_suffix(p, suffix)
         name = Path(p).name
@@ -525,6 +547,6 @@ class Backend(nn.Module):
         else:
             from urllib.parse import urlsplit
             url = urlsplit(p)
-            triton = bool(url.netloc) and bool(url.path)
+            triton = bool(url.netloc) and bool(url.path) and url.scheme in {"http", "grpc"}
         
-        return types + [triton]
+        return [*types, triton]

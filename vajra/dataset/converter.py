@@ -1,13 +1,15 @@
 # Vayuvahana Technologies Private Limited Vajra, AGPL-3.0 License
 
 import json
+import asyncio
 from collections import defaultdict
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from vajra.utils import LOGGER, TQDM
+from vajra.utils import LOGGER, TQDM, DATASETS_DIR, yaml_save
+from vajra.checks import check_requirements, check_file
 from vajra.utils.files import increment_path
 
 def coco91_to_coco80_class():
@@ -423,7 +425,7 @@ def merge_multi_segment(segments):
                     s.append(segments[i][nidx:])
     return s
 
-def yolo_bbox2segment(im_dir, save_dir=None, sam_model="sam_b.pt"):
+def yolo_bbox2segment(im_dir, save_dir=None, sam_model="sam_b.pt", device=None):
     """
     Converts existing object detection dataset (bounding boxes) to segmentation dataset or oriented bounding box (OBB)
     in Vajra format. Generates segmentation data using SAM auto-annotator as needed.
@@ -468,7 +470,7 @@ def yolo_bbox2segment(im_dir, save_dir=None, sam_model="sam_b.pt"):
         boxes[:, [0, 2]] *= w
         boxes[:, [1, 3]] *= h
         im = cv2.imread(l["im_file"])
-        sam_results = sam_model(im, bboxes=xywh2xyxy(boxes), verbose=False, save=False)
+        sam_results = sam_model(im, bboxes=xywh2xyxy(boxes), verbose=False, save=False, device=device)
         l["segments"] = sam_results[0].masks.xyn
 
     save_dir = Path(save_dir) if save_dir else Path(im_dir).parent / "labels-segment"
@@ -485,3 +487,78 @@ def yolo_bbox2segment(im_dir, save_dir=None, sam_model="sam_b.pt"):
             with open(txt_file, "a") as f:
                 f.writelines(text + "\n" for text in texts)
     LOGGER.info(f"Generated segment labels saved in {save_dir}")
+
+async def convert_ndjson_to_yolo(ndjson_path: str | Path, output_path: str | Path | None = None) -> Path:
+    check_requirements("aiohttp")
+    import aiohttp
+
+    ndjson_path = Path(check_file(ndjson_path))
+    output_path = Path(output_path or DATASETS_DIR)
+    with open(ndjson_path) as f:
+        lines = [json.loads(line.strip()) for line in f if line.strip()]
+
+    dataset_record, image_records = lines[0], lines[1:]
+    dataset_dir = output_path / ndjson_path.stem
+    splits = {record["split"] for record in image_records}
+
+    dataset_dir.mkdir(parents=True, exist_ok=True)
+    data_yaml = dict(dataset_record)
+    data_yaml["names"] = {int(k): v for k, v in dataset_record.get("class_names", {}).items()}
+    data_yaml.pop("class_names")
+
+    for split in sorted(splits):
+        (dataset_dir / "images" / split).mkdir(parents=True, exist_ok=True)
+        (dataset_dir / "labels" / split).mkdir(parents=True, exist_ok=True)
+        data_yaml[split] = f"images/{split}"
+
+    async def process_record(session, semaphore, record):
+        async with semaphore:
+            split, original_name=  record["split"], record["file"]
+            label_path = dataset_dir / "labels" / split / f"{Path(original_name).stem}.txt"
+            image_path = dataset_dir / "images" / split / original_name
+
+            annotations = record.get("annotations", {})
+            lines_to_write = []
+            for key in annotations.keys():
+                lines_to_write = [" ".join(map(str, item)) for item in annotations[key]]
+                break
+            if "classification" in annotations:
+                lines_to_write = [str(cls) for cls in annotations["classification"]]
+
+            label_path.write_text("\n".join(lines_to_write) + "\n" if lines_to_write else "")
+
+            if http_url := record.get("url"):
+                if not image_path.exists():
+                    try:
+                        async with session.get(http_url, timeout=aiohttp.ClientTimeout(total=30)) as response:
+                            response.raise_for_status()
+                            with open(image_path, "wb") as f:
+                                async for chunk in response.content.iter_chunked(8192):
+                                    f.write(chunk)
+                        return True
+                    except Exception as e:
+                        LOGGER.warning(f"Failed to download {http_url}: {e}")
+                        return False
+            return True
+        
+    semaphore = asyncio.Semaphore(64)
+
+    async with aiohttp.ClientSession() as session:
+        pbar = TQDM(
+            total=len(image_records),
+            desc=f"Converting {ndjson_path.name} -> {dataset_dir} ({len(image_records)} images)",
+        )
+
+        async def tracked_process(record):
+            result = await process_record(session, semaphore, record)
+            pbar.update(1)
+            return result
+        
+        await asyncio.gather(*[tracked_process(record) for record in image_records])
+        pbar.close()
+
+    yaml_path = dataset_dir / "data.yaml"
+    yaml_save(yaml_path, data_yaml)
+
+    return yaml_path
+            

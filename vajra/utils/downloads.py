@@ -29,6 +29,18 @@ GITHUB_ASSETS_DICT = {
     "coco": {
         "weights": [f'vajra-v1-{k}-det.pt' for k in ('nano', 'small', "medium", "large", "xlarge")] + [f'vajra-v1-{k}-seg.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')] + [f'vajra-v1-{k}-pose.pt' for k in ('nano', 'small', 'medium', 'large', 'xlarge')],
         "version": "v1.0.4"
+    },
+    "obb_dotav1": {
+        "weights": [f'vajra-v1-{k}-obb.pt' for k in ('nano', 'small', 'medium')],
+        "version": "v1.0.6"
+    },
+    "sam": {
+        "weights": [f"sam2_{k}.pt" for k in "blst"] + [f"sam_{k}" for k in "bl"] + ["mobile_sam.pt"] + [f"FastSAM-{k}.pt" for k in "sx"],
+        "version": "v1.0.5"
+    },
+    "clip": {
+        "weights": ["mobileclip_blt.pt"],
+        "version": "v1.0.5"
     }
 }
 GITHUB_ASSETS_STEMS = [Path(k).stem for k in GITHUB_ASSETS_NAMES]
@@ -358,6 +370,10 @@ def attempt_download_asset(file, repo='NamanMakkar/VayuAI', release='v1.0.1', **
         elif name in GITHUB_ASSETS_NAMES:
             if "visdrone" in name:
                 release = GITHUB_ASSETS_DICT["visdrone"]["version"]
+            elif "sam" in name.lower():
+                release = GITHUB_ASSETS_DICT["sam"]["version"]
+            elif "clip" in name:
+                release = GITHUB_ASSETS_DICT["clip"]["version"]
             else:
                 release = GITHUB_ASSETS_DICT["coco"]["version"]
             safe_download(url=f"{download_url}/{release}/{name}", file=file, min_bytes=1e5, **kwargs)

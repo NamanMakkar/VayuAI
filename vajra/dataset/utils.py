@@ -61,7 +61,7 @@ def check_class_names(names):
                 f"{min(names.keys())}-{max(names.keys())} defined in your dataset YAML."
             )
         if isinstance(names[0], str) and names[0].startswith("n0"):  # imagenet class codes, i.e. 'n01440764'
-            names_map = yaml_load(ROOT / "config/datasets/ImageNet.yaml")["map"]  # human-readable names
+            names_map = yaml_load(ROOT / "configs/datasets/ImageNet.yaml")["map"]  # human-readable names
             names = {k: names_map[v] for k, v in names.items()}
     return names
 
@@ -188,12 +188,12 @@ def verify_image_label(args):
         msg = f"{prefix}WARNING! {im_file}: ignoring corrupt image/label: {e}"
         return [None, None, None, None, None, nm, nf, ne, nc, msg]
 
-def polygon2mask(imgsz, polygons, color=1, downsample_ratio=1):
+def polygon2mask(img_size, polygons, color=1, downsample_ratio=1):
     """
     Convert a list of polygons to a binary mask of the specified image size.
 
     Args:
-        imgsz (tuple): The size of the image as (height, width).
+        img_size (tuple): The size of the image as (height, width).
         polygons (list[np.ndarray]): A list of polygons. Each polygon is an array with shape [N, M], where
                                      N is the number of polygons, and M is the number of points such that M % 2 = 0.
         color (int, optional): The color value to fill in the polygons on the mask. Defaults to 1.
@@ -202,20 +202,20 @@ def polygon2mask(imgsz, polygons, color=1, downsample_ratio=1):
     Returns:
         (np.ndarray): A binary mask of the specified image size with the polygons filled in.
     """
-    mask = np.zeros(imgsz, dtype=np.uint8)
+    mask = np.zeros(img_size, dtype=np.uint8)
     polygons = np.asarray(polygons, dtype=np.int32)
     polygons = polygons.reshape((polygons.shape[0], -1, 2))
     cv2.fillPoly(mask, polygons, color=color)
-    nh, nw = (imgsz[0] // downsample_ratio, imgsz[1] // downsample_ratio)
+    nh, nw = (img_size[0] // downsample_ratio, img_size[1] // downsample_ratio)
     # Note: fillPoly first then resize is trying to keep the same loss calculation method when mask-ratio=1
     return cv2.resize(mask, (nw, nh))
 
-def polygons2masks(imgsz, polygons, color, downsample_ratio=1):
+def polygons2masks(img_size, polygons, color, downsample_ratio=1):
     """
     Convert a list of polygons to a set of binary masks of the specified image size.
 
     Args:
-        imgsz (tuple): The size of the image as (height, width).
+        img_size (tuple): The size of the image as (height, width).
         polygons (list[np.ndarray]): A list of polygons. Each polygon is an array with shape [N, M], where
                                      N is the number of polygons, and M is the number of points such that M % 2 = 0.
         color (int): The color value to fill in the polygons on the masks.
@@ -224,18 +224,18 @@ def polygons2masks(imgsz, polygons, color, downsample_ratio=1):
     Returns:
         (np.ndarray): A set of binary masks of the specified image size with the polygons filled in.
     """
-    return np.array([polygon2mask(imgsz, [x.reshape(-1)], color, downsample_ratio) for x in polygons])
+    return np.array([polygon2mask(img_size, [x.reshape(-1)], color, downsample_ratio) for x in polygons])
 
-def polygons2masks_overlap(imgsz, segments, downsample_ratio=1):
+def polygons2masks_overlap(img_size, segments, downsample_ratio=1):
     """Return a (640, 640) overlap mask."""
     masks = np.zeros(
-        (imgsz[0] // downsample_ratio, imgsz[1] // downsample_ratio),
+        (img_size[0] // downsample_ratio, img_size[1] // downsample_ratio),
         dtype=np.int32 if len(segments) > 255 else np.uint8,
     )
     areas = []
     ms = []
     for segment in segments:
-        mask = polygon2mask(imgsz, [segment.reshape(-1)], downsample_ratio=downsample_ratio, color=1)
+        mask = polygon2mask(img_size, [segment.reshape(-1)], downsample_ratio=downsample_ratio, color=1)
         ms.append(mask.astype(masks.dtype))
         areas.append(mask.sum())
     areas = np.asarray(areas)
@@ -323,7 +323,7 @@ def check_det_dataset(dataset, autodownload=True, add_kpts=False):
 
     # Set paths
     data["path"] = path  # download scripts
-    for k in "train", "val", "test":
+    for k in "train", "val", "test", "minival":
         if data.get(k):  # prepend path
             if isinstance(data[k], str):
                 x = (path / data[k]).resolve()

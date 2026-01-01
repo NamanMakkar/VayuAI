@@ -13,7 +13,7 @@ class SecurityAlarm(BaseSolution):
         self.to_email = ""
         self.from_email = ""
 
-        PROVIDER_MAP = {
+        self.PROVIDER_MAP = {
             "gmail.com": ("smtp.gmail.com", 465),
             "zoho.com": ("smtp.zoho.com", 465),
             "outlook.com": ("smtp.office365.com", 587),

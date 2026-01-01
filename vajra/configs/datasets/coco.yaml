@@ -3,7 +3,7 @@
 # COCO 2017 dataset https://cocodataset.org by Microsoft
 # Example usage: vajra train data=coco.yaml
 # parent
-# ├── vajra
+# ├── VayuAI
 # └── data
 #     └── coco  ← downloads here (20.1 GB)
 

@@ -14,7 +14,7 @@ state-of-the-art (SOTA) real time object detection model inspired by the YOLO mo
 | [VajraV1-xlarge-det](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.4/vajra-v1-xlarge-det.pt)  | 640           | 56.2                           | 3.2                                                 | 72.7      | 208.3     |
 
 <p align="center">
-<img width="100%" src="./vajra/assets/vajra_v1_detection_performance_coco.png" alt="VajraV1 Detection Performance on COCO Dataset">
+<img width="100%" src="../../../vajra/assets/vajra_v1_detection_performance_coco.png" alt="VajraV1 Detection Performance on COCO Dataset">
 </p>
 
 ## VajraV1 Instance Segmentation Performance on the COCO Dataset
@@ -28,7 +28,7 @@ state-of-the-art (SOTA) real time object detection model inspired by the YOLO mo
 | [VajraV1-xlarge-seg](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.4/vajra-v1-xlarge-seg.pt) | 640           | 55.7                          | 44.5                             | 3.4                                                 | 75       | 278.1     |
 
 <p align="center">
-<img width="100%" src="./vajra/assets/vajra_v1_segmentation_performance_coco.png" alt="VajraV1 Segmentation Performance on COCO Dataset">
+<img width="100%" src="../../../vajra/assets/vajra_v1_segmentation_performance_coco.png" alt="VajraV1 Segmentation Performance on COCO Dataset">
 </p>
 
 ## VajraV1 Pose Estimation Performance on the COCO Dataset
@@ -42,6 +42,6 @@ state-of-the-art (SOTA) real time object detection model inspired by the YOLO mo
 | [VajraV1-xlarge-pose](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.4/vajra-v1-xlarge-pose.pt) | 640           | 71.5                          | 91.4                             | 3.7                                                 | 73.56       | 26.5      |
 
 <p align="center">
-<img width="100%" src="./vajra/assets/vajra_v1_pose_performance.png" alt="VajraV1 Pose Estimation Performance on COCO Dataset">
+<img width="100%" src="../../../vajra/assets/vajra_v1_pose_performance.png" alt="VajraV1 Pose Estimation Performance on COCO Dataset">
 </p>
 

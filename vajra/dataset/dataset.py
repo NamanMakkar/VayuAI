@@ -28,11 +28,10 @@ def load_dataset_cache_file(path):
     """Load a *.cache dictionary from path."""
     import gc
 
-    gc.disable()  # reduce pickle load time https://github.com/ultralytics/ultralytics/pull/1585
+    gc.disable()
     cache = np.load(str(path), allow_pickle=True).item()  # load dict
     gc.enable()
     return cache
-
 
 def save_dataset_cache_file(prefix, path, x):
     """Save a dataset *.cache dictionary x to path."""
@@ -169,9 +168,9 @@ class VajraDetDataset(BaseDataset):
         if self.augment:
             hyp.mosaic = hyp.mosaic if self.augment and not self.rect else 0.0
             hyp.mixup = hyp.mixup if self.augment and not self.rect else 0.0
-            transforms = vajra_transforms(self, self.imgsz, hyp)
+            transforms = vajra_transforms(self, self.img_size, hyp)
         else:
-            transforms = Compose([LetterBox(new_shape=(self.imgsz, self.imgsz), scaleup=False)])
+            transforms = Compose([LetterBox(new_shape=(self.img_size, self.img_size), scaleup=False)])
         transforms.append(
             Format(
                 bbox_format="xywh",
@@ -190,8 +189,23 @@ class VajraDetDataset(BaseDataset):
     def close_mosaic(self, hyp):
         """Sets mosaic, copy_paste and mixup options to 0.0 and builds transformations."""
         hyp.mosaic = 0.0  # set mosaic ratio=0.0
-        hyp.copy_paste = 0.0  # keep the same behavior as previous v8 close-mosaic
-        hyp.mixup = 0.0  # keep the same behavior as previous v8 close-mosaic
+        hyp.copy_paste = 0.0
+        hyp.mixup = 0.0 
+        self.transforms = self.build_transforms(hyp)
+
+    def set_mixup(self, hyp):
+        """For DETR sets the value of mixup to 0.5 and builds transformations."""
+        hyp.mixup = 0.5
+        self.transforms = self.build_transforms(hyp)
+
+    def set_mosaic(self, hyp):
+        """For DETR sets the probability of mosaic to 0.5 for selected epochs and builds transformations."""
+        hyp.mosaic = 0.5
+        self.transforms = self.build_transforms(hyp)
+
+    def close_mixup(self, hyp):
+        """For DETR sets mixup to 0.0 and builds transformations."""
+        hyp.mixup = 0.0
         self.transforms = self.build_transforms(hyp)
 
     def change_scale(self, hyp):
@@ -356,9 +370,9 @@ class VajraSmallObjDetDataset(BaseDataset):
         if self.augment:
             hyp.mosaic = hyp.mosaic if self.augment and not self.rect else 0.0
             hyp.mixup = hyp.mixup if self.augment and not self.rect else 0.0
-            transforms = vajra_transforms(self, self.imgsz, hyp)
+            transforms = vajra_transforms(self, self.img_size, hyp)
         else:
-            transforms = Compose([LetterBox(new_shape=(self.imgsz, self.imgsz), scaleup=False)])
+            transforms = Compose([LetterBox(new_shape=(self.img_size, self.img_size), scaleup=False)])
         transforms.append(
             Format(
                 bbox_format="xywh",
@@ -651,7 +665,7 @@ class ClassificationDataset(torchvision.datasets.ImageFolder):
         Args:
             root (str): Path to the dataset directory where images are stored in a class-specific folder structure.
             args (Namespace): Configuration containing dataset-related settings such as image size, augmentation
-                parameters, and cache settings. It includes attributes like `imgsz` (image size), `fraction` (fraction
+                parameters, and cache settings. It includes attributes like `img_size` (image size), `fraction` (fraction
                 of data to use), `scale`, `fliplr`, `flipud`, `cache` (disk or RAM caching for faster training),
                 `auto_augment`, `hsv_h`, `hsv_s`, `hsv_v`, and `crop_fraction`.
             augment (bool, optional): Whether to apply augmentations to the dataset. Default is False.
@@ -854,7 +868,7 @@ class MultiLabelClassificationDataset(BaseDataset):
         scale = (1.0 - self.hyp.scale, 1.0)
         torch_transforms = (
             classify_augmentations(
-                size=self.imgsz,
+                size=self.img_size,
                 scale=scale,
                 hflip=self.hyp.fliplr,
                 vflip=self.hyp.flipud,
@@ -865,7 +879,7 @@ class MultiLabelClassificationDataset(BaseDataset):
                 hsv_v=self.hyp.hsv_v,
             )
             if self.augment
-            else classify_transforms(size=self.imgsz, crop_fraction=self.hyp.crop_fraction)
+            else classify_transforms(size=self.img_size, crop_fraction=self.hyp.crop_fraction)
         )
 
         return torch_transforms

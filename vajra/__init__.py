@@ -1,5 +1,5 @@
 # Vayuvahana Technologies Private Limited Vajra, AGPL-3.0 License
-__version__ = "1.0.4"
+__version__ = "1.0.6"
 
 from vajra.models import Vajra, VajraE, VajraWorldModel, SAM, FastSAM, DETR
 from vajra.utils import ASSETS, SETTINGS as settings

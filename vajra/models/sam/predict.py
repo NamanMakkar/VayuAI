@@ -256,7 +256,7 @@ class SamPredictor(Predictor):
         assert (
             isinstance(self.img_size, (tuple, list)) and self.img_size[0] == self.img_size[1]
         ), f"SAM models only support square image size, but got {self.img_size}."
-        self.model.set_imgsz(self.img_size)
+        self.model.set_img_size(self.img_size)
         return self.model.image_encoder(img)
     
     def set_prompts(self, prompts):
@@ -391,9 +391,12 @@ class SAM2Predictor(SamPredictor):
         )
         # Predict masks
         batched_mode = points is not None and points[0].shape[0] > 1  # multi object prediction
-        high_res_features = [feat_level[img_idx].unsqueeze(0) for feat_level in features["high_res_feats"]]
+        high_res_features = None
+        if isinstance(features, dict):
+            high_res_features = [feat_level[img_idx].unsqueeze(0) for feat_level in features["high_res_feats"]]
+            features = features["image_embed"][[img_idx]]
         pred_masks, pred_scores, _, _ = self.model.sam_mask_decoder(
-            image_embeddings=features["image_embed"][img_idx].unsqueeze(0),
+            image_embeddings=features,
             image_pe=self.model.sam_prompt_encoder.get_dense_pe(),
             sparse_prompt_embeddings=sparse_embeddings,
             dense_prompt_embeddings=dense_embeddings,
@@ -467,12 +470,12 @@ class SAM2Predictor(SamPredictor):
             self.features = self.get_img_features(img)
             break
 
-    def get_im_features(self, img):
+    def get_img_features(self, img):
         """Extracts image features from the SAM image encoder for subsequent processing."""
         assert (
             isinstance(self.img_size, (tuple, list)) and self.img_size[0] == self.img_size[1]
-        ), f"SAM 2 models only support square image size, but got {self.imgsz}."
-        self.model.set_imgsz(self.img_size)
+        ), f"SAM 2 models only support square image size, but got {self.img_size}."
+        self.model.set_img_size(self.img_size)
         self._bb_feat_sizes = [[x // (4 * i) for x in self.img_size] for i in [1, 2, 4]]
 
         backbone_out = self.model.forward_image(img)

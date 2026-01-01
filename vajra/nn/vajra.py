@@ -9,7 +9,7 @@ from vajra.checks import check_suffix, check_requirements
 from vajra.utils.downloads import attempt_download_asset
 from vajra.nn.modules import A2C2f, InnerBlock, RepConv, VajraV1MerudandaX, ScalSeq, ADown, SCDown2, RepNCSPELAN4, VajraSPPModule, SCDown, SPPFMLP, AttentionBlockV2, VajraV1MerudandaBhag16, VajraV1MerudandaBhag15, AreaAttentionBlock, SPPFRepViT, VajraStemBlock, VajraV1AttentionBhag7, MLPConv, MerudandaDW, VajraV1MerudandaBhag8, VajraV1MerudandaBhag10, VajraV1MerudandaBhag12, VajraV1AttentionBhag2, VajraStambhV4, VajraV1MerudandaBhag1, VajraV1MerudandaBhag11, VajraV1MerudandaBhag13, SanlayanSPPFAttentionV5, VajraV1AttentionBhag11, SanlayanSPPFAttentionV7, VajraV1AttentionBhag5, VajraV1MerudandaBhag9, VajraV1AttentionBhag3, VajraV1AttentionBhag6, VajraV1AttentionBhag8, VajraV1AttentionBhag10, VajraV1AttentionBhag4, VajraV1MerudandaBhag3, VajraV1MerudandaBhag4, VajraV1MerudandaBhag5, VajraV1MerudandaBhag6, VajraV1AttentionBhag9, VajraV1Attention, VajraV1AttentionBhag1, VajraV1AttentionBhag2, VajraV1Merudanda, VajraV1MerudandaBhag2, Concatenate, SanlayanSPPF, SanlayanSPPFAttention, SanlayanSPPFAttentionV4, Upsample, SPPF, VajraMerudandaBhag3, VajraLiteMerudandaBhag1, VajraV1LiteOuterBlock, VajraGrivaBhag3, VajraMerudandaBhag4, VajraMerudandaBhag5, VajraMerudandaBhag6, VajraGrivaBhag1, VajraGrivaBhag2, VajraStambh, VajraStambhV2, VajraMerudandaBhag2, VajraAttentionBlock, Sanlayan, ChatushtayaSanlayan, ConvBNAct, DepthwiseConvBNAct, MaxPool, ImagePoolingAttention, AttentionBottleneck, AttentionBottleneckV2, MerudandaDW, RepVGGDW, RepVGGBlock
 from vajra.nn.window_attention import VajraV1SwinTransformerBlockV1, VajraV1SwinTransformerBlockV2, VajraV1SwinTransformerBlockV3, SanlayanSPPFSwinV1, VajraV1SwinTransformerBlockV4
-from vajra.nn.head import Detection, DetectionV2, OBBDetection, Segmentation, Classification, PoseDetection, WorldDetection, Panoptic, DEYODetection, PEDetection, PESegmentation, LRPCHead
+from vajra.nn.head import Detection, OBBDetection, Segmentation, Classification, PoseDetection, WorldDetection, Panoptic, DEYODetection, PEDetection, PESegmentation, LRPCHead
 from vajra.nn.vajrav2 import VajraV2ModelNSM, VajraV2ModelLX, VajraV2CLSModel
 from vajra.nn.backend import check_class_names
 from vajra.nn.vajrav3 import VajraV3Model, VajraV3CLSModel
@@ -22,7 +22,7 @@ from vajra.nn.backbones.resnets.resnet import build_resnet
 from vajra.nn.backbones.mobilenets.build import build_mobilenet
 from vajra.utils import LOGGER, HYPERPARAMS_CFG_DICT, HYPERPARAMS_CFG_KEYS
 from vajra.utils.torch_utils import model_info, initialize_weights, fuse_conv_and_bn, time_sync, intersect_dicts, scale_img, smart_inference_mode
-from vajra.loss import DetectionLoss, VajraDetectionLoss, DEYODetectionLoss, OBBLoss, SegmentationLoss, PoseLoss, ClassificationLoss, PanopticLoss
+from vajra.loss import DetectionLoss, DEYODetectionLoss, OBBLoss, SegmentationLoss, PoseLoss, ClassificationLoss, PanopticLoss
 
 try:
     import thop
@@ -323,6 +323,7 @@ class VajraV1ModelL(nn.Module):
         self.neck_conv2 = ADown(512, 512)
         self.concat4 = Concatenate(in_c=[channels_list[4], 512], dimension=1)
         self.vajra_neck4 = VajraV1MerudandaBhag15(channels_list[4] + 512, 512, 3, True, 0.5, False, 3, False) #VajraV1MerudandaX(512 + channels_list[4], 512, 512, 256, 1, True)
+
 
     def forward(self, x):
         stem1 = self.stem1(x)
@@ -954,20 +955,20 @@ def build_vajra(in_channels,
         expand_channels_list = [96, 128, 128, 192, 128, 128, 128, 128] if task != "classify" else [96, 128, 128, 192]
     
     else:
-        if version != "v2":
-            config_dict = {"nano": [0.5, 0.5, 0.25, 1024], 
+        #if version != "v2":
+        config_dict = {"nano": [0.5, 0.5, 0.25, 1024], 
                        "small": [0.5, 0.5, 0.5, 1024],
                        "medium": [0.5, 0.50, 1.0, 512],
                        "large": [1.0, 1.0, 1.0, 512],
                        "xlarge": [1.0, 1.0, 1.0, 512],
-                }
-        else:
-            config_dict = {"nano": [0.5, 0.5, 0.25, 1024], 
-                       "small": [0.5, 0.5, 0.5, 1024],
-                       "medium": [0.5, 0.50, 0.75, 768],
-                       "large": [1.0, 1.0, 1.0, 512],
-                       "xlarge": [1.0, 1.0, 1.25, 512],
-                }
+            }
+        #else:
+            #config_dict = {"nano": [0.5, 0.5, 0.25, 1024], 
+            #           "small": [0.5, 0.5, 0.5, 1024],
+            #           "medium": [0.5, 0.50, 0.75, 768],
+            #           "large": [1.0, 1.0, 1.0, 512],
+            #           "xlarge": [1.0, 1.0, 1.25, 512],
+            #    }
         
         #if version != "v2":
         num_repeats = [2, 2, 2, 2, 2, 2, 2, 2] if task != "classify" else [2, 2, 2, 2]
@@ -1046,14 +1047,14 @@ def build_vajra(in_channels,
                 if size in ["nano", "small", "medium"]:
                     model = VajraV2ModelNSM(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV2ModelNSM(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
                 else:
-                    model = VajraV2ModelLX(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV2ModelLX(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
+                    model = VajraV2ModelLX(in_channels, channels_list, num_repeats, inner_blocks_list)#if model_name.split("-")[1] != "deyo" else VajraV2ModelLX(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
             elif version == "v3":
                 model = VajraV3Model(in_channels, channels_list, num_repeats, inner_blocks_list) #if model_name.split("-")[1] != "deyo" else VajraV3Model(in_channels, vajra_deyo_channels_list, num_repeats, inner_blocks_list)
 
             if version == "v1":
                 head_channels = [channels_list[8], channels_list[10], channels_list[12]] if size != "xlarge" else [256, 512, 512]
             elif version == "v2":
-                head_channels = [channels_list[8], channels_list[10], channels_list[12]] #[channels_list[10], channels_list[12], channels_list[14], channels_list[16]]
+                head_channels = [channels_list[8], channels_list[10], channels_list[12]] if size != "xlarge" else [256, 512, 512] #[channels_list[10], channels_list[12], channels_list[14], channels_list[16]]
             elif version == "v3":
                 head_channels = [channels_list[4] // 2, int(0.75 * channels_list[4]), channels_list[4], channels_list[4]]
 
@@ -1062,6 +1063,7 @@ def build_vajra(in_channels,
                     head = PEDetection(num_classes, in_channels=head_channels, embed_dim=512, with_bn=True)
                 else:
                     head = Detection(num_classes, head_channels)
+
             elif task == "segment":
                 if model_name.split("-")[0][-1] == "e":
                     head = PESegmentation(num_classes, in_channels=head_channels, num_protos=num_protos, embed_dim=512, with_bn=True)
@@ -1225,7 +1227,7 @@ class Model(nn.Module):
         return sum(isinstance(v, batchnorms) for v in self.modules()) < threshold
 
     def info(self, detailed = False, verbose=True, img_size=640):
-        return model_info(self, detailed=detailed, verbose=verbose, imgsz=img_size)
+        return model_info(self, detailed=detailed, verbose=verbose, img_size=img_size)
 
     def _apply(self, fn):
         self = super()._apply(fn)
@@ -1349,7 +1351,7 @@ class VajraDEYODetectionModel(DetectionModel):
         return DEYODetectionLoss(self)
 
     def predict(self, x, profile=False, visualize=False, augment=False):
-        imgsz = x.shape[2:]
+        img_size = x.shape[2:]
         dt = []
         y = []
         for layer in self.model[:-1]:
@@ -1359,7 +1361,7 @@ class VajraDEYODetectionModel(DetectionModel):
             y.append(x)
 
         head = self.model[-1]
-        x = head(y[-1], imgsz)
+        x = head(y[-1], img_size)
         return x
 
 class ClassificationModel(Model):

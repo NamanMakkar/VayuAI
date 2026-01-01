@@ -35,10 +35,10 @@ def _log_tensorboard_graph(trainer):
     """Log model graph to TensorBoard."""
 
     # Input image
-    imgsz = trainer.args.img_size
-    imgsz = (imgsz, imgsz) if isinstance(imgsz, int) else imgsz
+    img_size = trainer.args.img_size
+    img_size = (img_size, img_size) if isinstance(img_size, int) else img_size
     p = next(trainer.model.parameters())  # for device, type
-    im = torch.zeros((1, 3, *imgsz), device=p.device, dtype=p.dtype)  # input image (must be zeros, not empty)
+    im = torch.zeros((1, 3, *img_size), device=p.device, dtype=p.dtype)  # input image (must be zeros, not empty)
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", category=UserWarning)  # suppress jit trace warning
@@ -66,7 +66,7 @@ def _log_tensorboard_graph(trainer):
                     #LOGGER.info(f"Parameter {name} is on {param.device}, expected {device}\n")
             
             for m in model.modules():
-                if hasattr(m, "export"):  # Detect, RTDETRDecoder (Segment and Pose use Detect base class)
+                if hasattr(m, "export"):  # Detect, DFINETransformer
                     m.export = True
                     m.format = "torchscript"
             model(im)  # dry run

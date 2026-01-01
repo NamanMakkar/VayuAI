@@ -4,7 +4,53 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from typing import List, Tuple, Type, Optional
-from vajra.nn.transformer import LayerNorm2d, MLP
+from vajra.nn.transformer import LayerNorm2d
+
+class MLP(nn.Module):
+    """A simple multi-layer perceptron (also called FFN).
+
+    This class implements a configurable MLP with multiple linear layers, activation functions, and optional sigmoid
+    output activation.
+
+    Attributes:
+        num_layers (int): Number of layers in the MLP.
+        layers (nn.ModuleList): List of linear layers.
+        sigmoid (bool): Whether to apply sigmoid to the output.
+        act (nn.Module): Activation function.
+    """
+
+    def __init__(
+        self, input_dim: int, hidden_dim: int, output_dim: int, num_layers: int, act=nn.ReLU, sigmoid: bool = False
+    ):
+        """Initialize the MLP with specified input, hidden, output dimensions and number of layers.
+
+        Args:
+            input_dim (int): Input dimension.
+            hidden_dim (int): Hidden dimension.
+            output_dim (int): Output dimension.
+            num_layers (int): Number of layers.
+            act (nn.Module): Activation function.
+            sigmoid (bool): Whether to apply sigmoid to the output.
+        """
+        super().__init__()
+        self.num_layers = num_layers
+        h = [hidden_dim] * (num_layers - 1)
+        self.layers = nn.ModuleList(nn.Linear(n, k) for n, k in zip([input_dim, *h], [*h, output_dim]))
+        self.sigmoid = sigmoid
+        self.act = act()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Forward pass for the entire MLP.
+
+        Args:
+            x (torch.Tensor): Input tensor.
+
+        Returns:
+            (torch.Tensor): Output tensor after MLP.
+        """
+        for i, layer in enumerate(self.layers):
+            x = getattr(self, "act", nn.ReLU())(layer(x)) if i < self.num_layers - 1 else layer(x)
+        return x.sigmoid() if getattr(self, "sigmoid", False) else x
 
 class MaskDecoder(nn.Module):
     """

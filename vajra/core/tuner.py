@@ -1,4 +1,4 @@
-# Vayuvahana Technologies Private Limited Vajra, AGPL-3.0 License
+# Vayuvahana Technologies Private Limited VayuAI, AGPL-3.0 License
 
 import random
 import shutil

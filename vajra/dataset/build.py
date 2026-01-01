@@ -84,7 +84,7 @@ def build_vajra_dataset(cfg, img_path, batch, data, mode="train", rect=False, st
     dataset = MultiModalDataset if multi_modal else VajraDetDataset
     return dataset(
         img_path=img_path,
-        imgsz=cfg.img_size,
+        img_size=cfg.img_size,
         batch_size=batch,
         augment=mode == "train",
         hyp=cfg,
@@ -105,7 +105,7 @@ def build_vajra_small_obj_dataset(cfg, img_path, batch, data, mode="train", rect
     #LOGGER.info(f"Classes={cfg.classes}")
     return VajraSmallObjDetDataset(
         img_path=img_path,
-        imgsz=cfg.img_size,
+        img_size=cfg.img_size,
         batch_size=batch,
         augment=mode == "train",  # augmentation
         hyp=cfg,
@@ -143,7 +143,7 @@ def build_vision_language_dataset(cfg, img_path, json_file, batch, mode="train",
 def build_multilabel_cls_dataset(cfg, img_path, batch, data, mode="train", rect=False, stride=32):
     return MultiLabelClassificationDataset(
         img_path=img_path,
-        imgsz=cfg.img_size,
+        img_size=cfg.img_size,
         batch_size=batch,
         augment=mode == "train",
         hyp=cfg,

@@ -42,7 +42,6 @@ class DETRTrainer(DetectionTrainer):
 
     def _setup_train(self, world_size):
         self.run_callbacks("on_pretrain_routine_start")
-        #LOGGER.info(f"Model Name: {str(self.model)}")
         checkpoint = self.setup_model()
         self.model = self.model.to(self.device)
         self.set_model_attributes()
@@ -92,10 +91,10 @@ class DETRTrainer(DetectionTrainer):
             self.args.batch = self.batch_size = check_train_batch_size(self.model, self.args.img_size, self.amp)
         
         batch_size = self.batch_size // max(world_size, 1)
-        self.train_loader = self.get_dataloader(self.trainset, batch_size=batch_size, rank=RANK, mode="train")
+        self.train_loader = self.get_dataloader(self.data["train"], batch_size=batch_size, rank=RANK, mode="train")
         if RANK in (-1, 0):
             self.test_loader = self.get_dataloader(
-                self.testset, batch_size=batch_size * 2, rank=-1, mode="val"
+                self.data.get("val") or self.data.get("test"), batch_size=batch_size * 2, rank=-1, mode="val"
             )
 
             self.validator = self.get_validator()
@@ -122,6 +121,32 @@ class DETRTrainer(DetectionTrainer):
         self.resume_training(checkpoint)
         self.scheduler.last_epoch = self.start_epoch - 1
         self.run_callbacks("on_pretrain_routine_end")
+
+    def toggle_mixup(self, ep, mixup_eps):
+        if mixup_eps[0] <= ep < mixup_eps[1]:
+            if not hasattr(self.train_loader.dataset, "mixup"):
+                LOGGER.info(f"Setting Mixup = 0.5 for epoch: {ep} - {mixup_eps[1]}")
+                self.train_loader.dataset.set_mixup(hyp=self.args)
+                self.train_loader.reset()
+        
+        else:
+            if self.train_loader.dataset.mixup != 0.0:
+                LOGGER.info(f"Setting Mixup Proabability to 0")
+                self.train_loader.dataset.close_mixup(hyp=self.args)
+                self.train_loader.reset()
+
+    def toggle_mosaic(self, ep, mosaic_eps):
+        if mosaic_eps[0] < ep < mosaic_eps[1]:
+            if not hasattr(self.train_loader.dataset, "mosaic"):
+                LOGGER.info(f"Setting Mosaic = 0.5 for epoch: {ep} - {mosaic_eps[1]}")
+                self.train_loader.dataset.set_mosaic(hyp=self.args)
+                self.train_loader.reset()
+        
+        else:
+            if self.train_loader.dataset.mosaic != 0.0:
+                LOGGER.info(f"Setting Mosaic Probability to 0")
+                self.train_loader.dataset.close_mosaic(hyp=self.args)
+                self.train_loader.reset()
     
     def _do_train(self, world_size=1):
         if world_size > 1:
@@ -153,6 +178,8 @@ class DETRTrainer(DetectionTrainer):
             if RANK != -1:
                 self.train_loader.sampler.set_epoch(epoch)
             pbar = enumerate(self.train_loader)
+            self.toggle_mixup(self.epoch, self.args.mixup_epochs)
+            self.toggle_mosaic(self.epoch, self.args.mosaic_epochs)
             if epoch == (self.epochs - self.args.close_mosaic):
                 self._close_dataloader_mosaic()
                 self.train_loader.reset()
@@ -273,7 +300,7 @@ class DETRTrainer(DetectionTrainer):
     def build_dataset(self, img_path, mode="train", batch=None):
         return DETRDataset(
             img_path = img_path,
-            imgsz = self.args.img_size,
+            img_size = self.args.img_size,
             batch_size = batch,
             augment = mode == "train",
             hyp = self.args,

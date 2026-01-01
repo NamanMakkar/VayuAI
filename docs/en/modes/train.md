@@ -208,7 +208,7 @@ To use TensorBoard in Google Colab:
 
         ```bash
         load_ext tensorboard
-        tensorboard --logdir ultralytics/runs # replace with 'runs' directory
+        tensorboard --logdir vajra/runs # replace with 'runs' directory
         ```
 
 To use TensorBoard locally run the below command and view results at `http://localhost:6006/`.
@@ -218,7 +218,7 @@ To use TensorBoard locally run the below command and view results at `http://loc
     === "CLI"
 
         ```bash
-        tensorboard --logdir ultralytics/runs # replace with 'runs' directory
+        tensorboard --logdir vajra/runs # replace with 'runs' directory
         ```
 
 This will load TensorBoard and direct it to the directory where your training logs are saved.

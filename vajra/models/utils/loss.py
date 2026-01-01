@@ -66,42 +66,57 @@ class FocalLoss(nn.Module):
             alpha_factor = label * self.alpha + (1 - label) * (1 - self.alpha)
             loss *= alpha_factor
         return loss.mean(1).sum()
-
+    
 class DFINECriterion(nn.Module):
-    __share__ = ["num_classes"]
-    __inject__ = ["matcher"]
+    """This class computes the loss for D-FINE."""
 
-    def __init__(self, 
-                 matcher, 
-                 loss_weight_dict, 
-                 losses, alpha=0.2, 
-                 gamma=2.0, 
-                 num_classes=80, 
-                 reg_max=32, 
-                 boxes_weight_format=None, 
-                 share_matched_indices=False
+    __share__ = [
+        "num_classes",
+    ]
+    __inject__ = [
+        "matcher",
+    ]
+
+    def __init__(
+        self,
+        matcher,
+        weight_dict,
+        losses,
+        alpha=0.2,
+        gamma=2.0,
+        num_classes=80,
+        reg_max=32,
+        boxes_weight_format=None,
+        share_matched_indices=False,
     ):
+        """Create the criterion.
+        Parameters:
+            matcher: module able to compute a matching between targets and proposals.
+            weight_dict: dict containing as key the names of the losses and as values their relative weight.
+            losses: list of all the losses to be applied. See get_loss for list of available losses.
+            num_classes: number of object categories, omitting the special no-object category.
+            reg_max (int): Max number of the discrete bins in D-FINE.
+            boxes_weight_format: format for boxes weight (iou, ).
+        """
         super().__init__()
         self.num_classes = num_classes
         self.matcher = matcher
-        self.loss_weight_dict = loss_weight_dict
+        self.weight_dict = weight_dict
+        self.losses = losses
+        self.boxes_weight_format = boxes_weight_format
+        self.share_matched_indices = share_matched_indices
         self.alpha = alpha
         self.gamma = gamma
-        self.boxes_weight_format = boxes_weight_format
-        self.losses = losses
-        self.share_matched_indices = share_matched_indices
         self.fgl_targets, self.fgl_targets_dn = None, None
         self.own_targets, self.own_targets_dn = None, None
         self.reg_max = reg_max
-        self.fl = FocalLoss(self.alpha, self.gamma)
-        self.vfl = VarifocalLoss(self.alpha, self.gamma)
         self.num_pos, self.num_neg = None, None
 
     def loss_labels_focal(self, outputs, targets, indices, num_boxes):
         assert "pred_logits" in outputs
         src_logits = outputs["pred_logits"]
         idx = self._get_src_permutation_idx(indices)
-        target_classes_o = torch.cat([t["labels"][j] for t, (_, j) in zip(targets, indices)])
+        target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
         target_classes = torch.full(src_logits.shape[:2], self.num_classes, dtype=torch.int64, device=src_logits.device)
         target_classes[idx] = target_classes_o
         target = F.one_hot(target_classes, num_classes=self.num_classes + 1)[..., :-1]
@@ -122,7 +137,7 @@ class DFINECriterion(nn.Module):
             ious = values
 
         src_logits = outputs["pred_logits"]
-        target_classes_o = torch.cat([t["labels"][j] for t, (_, j) in zip(targets, indices)])
+        target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
         target_classes = torch.full(src_logits.shape[:2], self.num_classes, dtype=torch.int64, device=src_logits.device)
         target_classes[idx] = target_classes_o
         target = F.one_hot(target_classes, num_classes=self.num_classes + 1)[..., :-1]
@@ -294,12 +309,10 @@ class DFINECriterion(nn.Module):
         if "aux_outputs" in outputs:
             indices_aux_list, cached_indices, cached_indices_enc = [], [], []
             for i, aux_outputs in enumerate(outputs["aux_outputs"] + [outputs["pre_outputs"]]):
-                LOGGER.info(f"aux_outputs + pre_outputs\n\n")
                 indices_aux = self.matcher(aux_outputs, targets)["indices"]
                 cached_indices.append(indices_aux)
                 indices_aux_list.append(indices_aux)
             for i, aux_outputs in enumerate(outputs["enc_aux_outputs"]):
-                LOGGER.info("enc_aux_outputs\n\n")
                 indices_enc = self.matcher(aux_outputs, targets)["indices"]
                 cached_indices_enc.append(indices_enc)
                 indices_aux_list.append(indices_enc)
@@ -316,7 +329,7 @@ class DFINECriterion(nn.Module):
             assert "aux_outputs" in outputs, ""
 
         # Compute the average number of target boxes accross all nodes, for normalization purposes
-        num_boxes = len(targets["labels"]) #sum(len(t["labels"]) for t in targets)
+        num_boxes = sum(len(t["labels"]) for t in targets)
         num_boxes = torch.as_tensor([num_boxes], dtype=torch.float, device=next(iter(outputs.values())).device)
         if is_dist_available_and_initialized():
             torch.distributed.all_reduce(num_boxes)
@@ -329,7 +342,7 @@ class DFINECriterion(nn.Module):
             num_boxes_in = num_boxes_go if loss in ["boxes", "local"] else num_boxes
             meta = self.get_loss_meta_info(loss, outputs, targets, indices_in)
             l_dict = self.get_loss(loss, outputs, targets, indices_in, num_boxes_in, **meta)
-            l_dict = {k: l_dict[k] * self.loss_weight_dict[k] for k in l_dict if k in self.loss_weight_dict}
+            l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
             losses.update(l_dict)
 
         # In case of auxiliary losses, we repeat this process with the output of each intermediate layer.
@@ -342,7 +355,7 @@ class DFINECriterion(nn.Module):
                     meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices_in)
                     l_dict = self.get_loss(loss, aux_outputs, targets, indices_in, num_boxes_in, **meta)
 
-                    l_dict = {k: l_dict[k] * self.loss_weight_dict[k] for k in l_dict if k in self.loss_weight_dict}
+                    l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
                     l_dict = {k + f"_aux_{i}": v for k, v in l_dict.items()}
                     losses.update(l_dict)
 
@@ -355,7 +368,7 @@ class DFINECriterion(nn.Module):
                 meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices_in)
                 l_dict = self.get_loss(loss, aux_outputs, targets, indices_in, num_boxes_in, **meta)
 
-                l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.loss_weight_dict}
+                l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
                 l_dict = {k + "_pre": v for k, v in l_dict.items()}
                 losses.update(l_dict)
 
@@ -378,7 +391,7 @@ class DFINECriterion(nn.Module):
                     num_boxes_in = num_boxes_go if loss == "boxes" else num_boxes
                     meta = self.get_loss_meta_info(loss, aux_outputs, enc_targets, indices_in)
                     l_dict = self.get_loss(loss, aux_outputs, enc_targets, indices_in, num_boxes_in, **meta)
-                    l_dict = {k: l_dict[k] * self.loss_weight_dict[k] for k in l_dict if k in self.loss_weight_dict}
+                    l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
                     l_dict = {k + f"_enc_{i}": v for k, v in l_dict.items()}
                     losses.update(l_dict)
 
@@ -397,7 +410,7 @@ class DFINECriterion(nn.Module):
                 for loss in self.losses:
                     meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices_dn)
                     l_dict = self.get_loss(loss, aux_outputs, targets, indices_dn, dn_num_boxes, **meta)
-                    l_dict = {k: l_dict[k] * self.loss_weight_dict[k] for k in l_dict if k in self.loss_weight_dict}
+                    l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
                     l_dict = {k + f"_dn_{i}": v for k, v in l_dict.items()}
                     losses.update(l_dict)
 
@@ -407,7 +420,7 @@ class DFINECriterion(nn.Module):
                 for loss in self.losses:
                     meta = self.get_loss_meta_info(loss, aux_outputs, targets, indices_dn)
                     l_dict = self.get_loss(loss, aux_outputs, targets, indices_dn, dn_num_boxes, **meta)
-                    l_dict = {k: l_dict[k] * self.loss_weight_dict[k] for k in l_dict if k in self.loss_weight_dict}
+                    l_dict = {k: l_dict[k] * self.weight_dict[k] for k in l_dict if k in self.weight_dict}
                     l_dict = {k + "_dn_pre": v for k, v in l_dict.items()}
                     losses.update(l_dict)
 

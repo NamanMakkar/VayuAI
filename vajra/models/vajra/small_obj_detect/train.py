@@ -79,23 +79,7 @@ class SmallObjDetectionTrainer(Trainer):
         self.last, self.best = self.weights_dir / f'last-{("-").join(str(Path(self.args.model).stem).split("-")[:-1]) + "-pose"}.pt', self.weights_dir / f'best-{("-").join(str(Path(self.args.model).stem).split("-")[:-1]) + "-pose"}.pt'
         self.last_det, self.best_det = self.weights_dir / f'last-{str(Path(self.args_model).stem)}.pt', self.weights_dir / f'best-{str(Path(self.args_model).stem)}.pt'
 
-        try:
-            if self.args.task == "classify":
-                self.data = check_cls_dataset(self.args.data)
-            elif self.args.data.split(".")[-1] in ("yaml", "yml") or self.args.task in (
-                "detect",
-                "segment",
-                "pose",
-                "obb",
-                "small_obj_detect",
-            ):
-                self.data = check_det_dataset(self.args.data, add_kpts=True)
-                if "yaml_file" in self.data:
-                    self.args.data = self.data["yaml_file"]
-        except Exception as e:
-            raise RuntimeError(f"Dataset '{clean_url(self.args.data)}' error! {e}") from e
-        
-        self.trainset, self.testset = self.get_dataset(self.data)
+        self.data = self.get_dataset()
         self.ema = None
         self.lf = None
         self.scheduler = None
@@ -161,10 +145,10 @@ class SmallObjDetectionTrainer(Trainer):
             self.args.batch = self.batch_size = check_train_batch_size(self.model, self.args.img_size, self.amp)
         
         batch_size = self.batch_size // max(world_size, 1)
-        self.train_loader = self.get_dataloader(self.trainset, batch_size=batch_size, rank=RANK, mode="train")
+        self.train_loader = self.get_dataloader(self.data["train"], batch_size=batch_size, rank=RANK, mode="train")
         if RANK in (-1, 0):
             self.test_loader = self.get_dataloader(
-                self.testset, batch_size=batch_size if self.args.task == "obb" else batch_size * 2, rank=-1, mode="val"
+                self.data.get("val") or self.data.get("test"), batch_size=batch_size if self.args.task == "obb" else batch_size * 2, rank=-1, mode="val"
             )
 
             self.validator = self.get_validator()

@@ -4,12 +4,14 @@ import torch
 import torch.nn as nn
 from typing import Dict
 from pathlib import Path
-from vajra.nn.transformer import HybridEncoder
+from collections import OrderedDict
+from vajra.nn.dfine.hybrid_encoder import HybridEncoder
 from vajra.models.utils import DEIMCriterion, DFINECriterion, convert_to_dfine_targets
-from vajra.nn.head import DFINETransformer
+from vajra.nn.dfine.dfine_decoder import DFINETransformer
 from vajra.nn.backbones.hgnet.hgnetv2 import HGNetV2
+from vajra.nn.dfine.hybrid_encoder import ConvNormLayer_fuse, VGGBlock
 from vajra.utils.dfine_ops import HungarianMatcher
-from vajra.utils.torch_utils import model_info, initialize_weights, fuse_conv_and_bn, time_sync, intersect_dicts, scale_img
+from vajra.utils.torch_utils import model_info, initialize_weights, fuse_conv_and_bn, time_sync, scale_img
 from vajra.utils import LOGGER, HYPERPARAMS_DETR_CFG_DICT, HYPERPARAMS_DETR_CFG, ROOT
 from vajra.utils.downloads import attempt_download_asset
 from vajra.nn.vajra import get_task
@@ -19,6 +21,21 @@ try:
     import thop
 except ImportError:
     thop = None
+
+
+def intersect_dicts(dict_a, dict_b, exclude=()):
+    """
+    Returns a new state_dict containing only keys that:
+      - exist in both dict_a and dict_b
+      - are not in exclude patterns
+      - have exactly the same shape
+    """
+    return OrderedDict({
+        k: v for k, v in dict_a.items()
+        if k in dict_b
+        and all(ex not in k for ex in exclude)
+        and v.shape == dict_b[k].shape
+    })
 
 def build_dfine_deim_n(checkpoint=None, model_name="dfine-nano-det", num_classes=80):
     backbone_config = {
@@ -40,10 +57,10 @@ def build_dfine_deim_n(checkpoint=None, model_name="dfine-nano-det", num_classes
         "nhead": 8,
         "dim_feedforward": 512,
         "dropout": 0.,
-        "enc_act": nn.GELU(),
+        "enc_act": "gelu", #nn.GELU(),
         "expansion": 0.34,
         "depth_mul": 0.5,
-        "act": nn.SiLU(),
+        "act": "silu", #nn.SiLU(),
     }
 
     transformer_head_config = {
@@ -88,10 +105,10 @@ def build_dfine_deim_s(checkpoint=None, model_name="dfine-small-det", num_classe
         "nhead": 8,
         "dim_feedforward": 1024,
         "dropout": 0.,
-        "enc_act": nn.GELU(),
+        "enc_act": "gelu", #nn.GELU(),
         "depth_mul": 0.34,
         "expansion": 0.5,
-        "act": nn.SiLU(),
+        "act": "silu", #nn.SiLU(),
     }
 
     transformer_head_config = {
@@ -99,6 +116,7 @@ def build_dfine_deim_s(checkpoint=None, model_name="dfine-small-det", num_classe
         "feat_channels": [256, 256, 256],
         "feat_strides": [8, 16, 32],
         "hidden_dim": 256,
+        "dim_feedforward": 1024,
         "num_levels": 3,
         "num_layers": 3,
         "eval_idx": -1,
@@ -135,10 +153,10 @@ def build_dfine_deim_m(checkpoint=None, model_name="dfine-medium-det", num_class
         "nhead": 8,
         "dim_feedforward": 1024,
         "dropout": 0.,
-        "enc_act": nn.GELU(),
+        "enc_act": "gelu",#nn.GELU(),
         "depth_mul": 0.67,
         "expansion": 1.0,
-        "act": nn.SiLU(),
+        "act": "silu", #nn.SiLU(),
     }
 
     transformer_head_config = {
@@ -146,6 +164,7 @@ def build_dfine_deim_m(checkpoint=None, model_name="dfine-medium-det", num_class
         "feat_channels": [256, 256, 256],
         "feat_strides": [8, 16, 32],
         "hidden_dim": 256,
+        "dim_feedforward": 1024,
         "num_levels": 3,
         "num_layers": 4,
         "eval_idx": -1,
@@ -184,10 +203,10 @@ def build_dfine_deim_l(checkpoint=None, model_name="dfine-large-det", num_classe
         "nhead": 8,
         "dim_feedforward": 1024,
         "dropout": 0.,
-        "enc_act": nn.GELU(),
+        "enc_act": "gelu",#nn.GELU(),
         "expansion": 1.0,
         "depth_mul": 1,
-        "act": nn.SiLU(),
+        "act": "silu",#nn.SiLU(),
     }
 
     transformer_head_config = {
@@ -195,6 +214,7 @@ def build_dfine_deim_l(checkpoint=None, model_name="dfine-large-det", num_classe
         "feat_channels": [256, 256, 256],
         "feat_strides": [8, 16, 32],
         "hidden_dim": 256,
+        "dim_feedforward": 1024,
         "num_levels": 3,
         "num_layers": 6,
         "eval_idx": -1,
@@ -232,10 +252,10 @@ def build_dfine_deim_xl(checkpoint=None, model_name="dfine-xlarge-det", num_clas
         "nhead": 8,
         "dim_feedforward": 2048,
         "dropout": 0.,
-        "enc_act": nn.GELU(),
+        "enc_act": "gelu",#nn.GELU(),
         "expansion": 1.0,
         "depth_mul": 1,
-        "act": nn.SiLU(),
+        "act": "silu",#nn.SiLU(),
     }
 
     transformer_head_config = {
@@ -243,6 +263,7 @@ def build_dfine_deim_xl(checkpoint=None, model_name="dfine-xlarge-det", num_clas
         "feat_channels": [384, 384, 384],
         "feat_strides": [8, 16, 32],
         "hidden_dim": 256,
+        "dim_feedforward": 1024,
         "num_levels": 3,
         "num_layers": 6,
         "eval_idx": -1,
@@ -273,8 +294,7 @@ detr_model_map = {
 }
 
 def _build_dfine(backbone_config: Dict, hybrid_encoder_config: Dict, transformer_head_config: Dict, checkpoint=None, model_name="dfine-nano-det"):
-    args = HYPERPARAMS_DETR_CFG #{**HYPERPARAMS_DETR_CFG_DICT}
-    #LOGGER.info(f"Print args keys: {args.keys()}\n")
+    args = HYPERPARAMS_DETR_CFG
     backbone = HGNetV2(**backbone_config)
     encoder = HybridEncoder(in_channels=hybrid_encoder_config["in_channels"],
                             feat_strides=hybrid_encoder_config["feat_strides"],
@@ -282,11 +302,11 @@ def _build_dfine(backbone_config: Dict, hybrid_encoder_config: Dict, transformer
                             nhead=hybrid_encoder_config["nhead"],
                             dim_feedforward=hybrid_encoder_config["dim_feedforward"],
                             dropout=hybrid_encoder_config["dropout"],
-                            encoder_act=hybrid_encoder_config["enc_act"],
+                            enc_act=hybrid_encoder_config["enc_act"],
                             use_encoder_idx=hybrid_encoder_config["use_encoder_idx"],
                             num_encoder_layers=hybrid_encoder_config["num_encoder_layers"],
                             expansion=hybrid_encoder_config["expansion"],
-                            depth_mul=hybrid_encoder_config["depth_mul"],
+                            depth_mult=hybrid_encoder_config["depth_mul"],
                             act=hybrid_encoder_config["act"],
                             eval_spatial_size=[args.img_size, args.img_size])
 
@@ -298,6 +318,7 @@ def _build_dfine(backbone_config: Dict, hybrid_encoder_config: Dict, transformer
                                num_levels=transformer_head_config["num_levels"],
                                num_points=transformer_head_config["num_points"],
                                num_layers=transformer_head_config["num_layers"],
+                               dim_feedforward=transformer_head_config["dim_feedforward"],
                                num_denoising=transformer_head_config["num_denoising"], 
                                label_noise_ratio=transformer_head_config["label_noise_ratio"], 
                                box_noise_scale=transformer_head_config["box_noise_scale"],
@@ -308,7 +329,7 @@ def _build_dfine(backbone_config: Dict, hybrid_encoder_config: Dict, transformer
                                reg_max=transformer_head_config["reg_max"],
                                reg_scale=transformer_head_config["reg_scale"],
                                layer_scale=transformer_head_config["layer_scale"],
-                               activation=nn.SiLU() if "deim" in model_name else nn.ReLU(),
+                               activation="silu" if "deim" in model_name else "relu",
                                mlp_act="silu" if "deim" in model_name else "relu",)
     
     model_name_type = model_name.split("-")[0]
@@ -318,10 +339,91 @@ def _build_dfine(backbone_config: Dict, hybrid_encoder_config: Dict, transformer
         model = DFINE(backbone, encoder, decoder)
     
     if checkpoint is not None:
-        checkpoint = attempt_download_asset(checkpoint)
-        with open(checkpoint, "rb") as f:
-            state_dict = torch.load(f)
-        model.load_state_dict(state_dict)
+        checkpoint_file = attempt_download_asset(checkpoint)
+        ckpt = torch.load(checkpoint_file, map_location="cpu")
+
+        if "model" in ckpt:
+            sd = ckpt["model"]
+        elif "ema" in ckpt:
+            sd = ckpt["ema"]
+        elif isinstance(ckpt, dict) and len(ckpt) > 0 and any(k.startswith("backbone") or k.startswith("encoder") for k in ckpt.keys()):
+            sd = ckpt
+        else:
+            sd = ckpt  # hope it's already the state_dict
+        sd = {k.replace("module.", ""): v for k, v in sd.items()}
+
+        # ----------------------------------------------------------------------
+        # DEBUG LOGGING TO ANALYZE CHECKPOINT VS MODEL KEYS
+        # ----------------------------------------------------------------------
+        #LOGGER.info(f"DFINE checkpoint keys ({len(sd)}):")
+        #for k in sorted(sd.keys()):
+            #LOGGER.info(f"  ckpt: {k}")
+
+        #model_keys = model.state_dict().keys()
+        #LOGGER.info(f"Model keys ({len(model_keys)}):")
+        #for k in sorted(model_keys):
+            #LOGGER.info(f"  model: {k}")
+
+        #ckpt_set = set(sd.keys())
+        #model_set = set(model_keys)
+
+        #intersect = ckpt_set & model_set
+        #only_in_ckpt = ckpt_set - model_set
+        #only_in_model = model_set - ckpt_set
+
+        #LOGGER.info(f"Intersecting keys ({len(intersect)}):")
+        #for k in sorted(intersect):
+            #LOGGER.info(f"  ✓ {k}")
+
+        #LOGGER.warning(f"Keys ONLY in checkpoint ({len(only_in_ckpt)}):")
+        #for k in sorted(only_in_ckpt):
+            #LOGGER.warning(f"  ckpt-only: {k}")
+
+        #LOGGER.warning(f"Keys ONLY in model ({len(only_in_model)}):")
+        #for k in sorted(only_in_model):
+            #LOGGER.warning(f"  model-only: {k}")
+
+        # ----------------------------------------------------------------------
+        # Get only the intersecting (compatible) weights
+        compatible_sd = intersect_dicts(sd, model.state_dict(), exclude=("relative_position", "pos_embed"))
+
+        total_model_params = len(model.state_dict())
+        transferred_params = len(compatible_sd)
+        missing_params = total_model_params - transferred_params
+
+        # Load only the compatible ones
+        model.load_state_dict(compatible_sd, strict=False)
+
+        LOGGER.info(f"Checkpoint: {Path(checkpoint).name}")
+        LOGGER.info(f"Transferred {transferred_params}/{total_model_params} weights successfully")
+        if transferred_params == total_model_params:
+            LOGGER.info("All weights loaded perfectly!")
+        else:
+            LOGGER.warning(f"{missing_params} weights NOT loaded (shape/name mismatch)")
+            # Optional: show which ones are missing
+            #missing_keys = set(model.state_dict().keys()) - set(compatible_sd.keys())
+            #if len(missing_keys) < 50:
+            #LOGGER.warning(f"Missing keys: {sorted(missing_keys)}")
+            #else:
+                #LOGGER.warning(f"First 20 missing keys: {sorted(missing_keys)[:20]}")
+
+        # Count actual parameter elements (not just keys)
+        transferred_elements = sum(p.numel() for p in compatible_sd.values())
+        total_elements = sum(p.numel() for p in model.state_dict().values())
+        LOGGER.info(f"Transferred {transferred_elements:,}/{total_elements:,} parameters ({transferred_elements / total_elements * 100:.2f}%)")
+        mismatched = []
+        for k in (set(model.state_dict().keys()) & set(sd.keys())):
+            v_model = model.state_dict()[k]
+            v_ckpt = sd[k]
+            if v_model.shape != v_ckpt.shape:
+                mismatched.append((k, tuple(v_ckpt.shape), tuple(v_model.shape)))
+
+        if mismatched:
+            LOGGER.warning("=== SHAPE MISMATCHED WEIGHTS (TRUE UNLOADED KEYS) ===")
+            for name, ckpt_shape, model_shape in mismatched:
+                LOGGER.warning(f"{name}: checkpoint{ckpt_shape} != model{model_shape}")
+        else:
+            LOGGER.info("No shape mismatches found (rare).")
     return model
 
 def build_rtdetr(task="detect", num_classes=80, size="nano", verbose=False, model_name="dfine-nano-det"):
@@ -456,10 +558,12 @@ class RTDETR_Model(nn.Module):
                     m.conv = fuse_conv_and_bn(m.conv, m.bn)
                     delattr(m, 'bn')
                     m.forward = m.forward_fuse
+                if isinstance(m, ConvNormLayer_fuse) and hasattr(m, "norm"):
+                    m.convert_to_deploy()
                 if isinstance(m, RepVGGDW):
                     m.fuse()
                     m.forward = m.forward_fuse
-                if isinstance(m, RepVGGBlock):
+                if isinstance(m, VGGBlock):
                     m.convert_to_deploy()
             self.info(verbose=verbose)
         return self
@@ -475,7 +579,7 @@ class RTDETR_Model(nn.Module):
         return NotImplementedError, "Loss will be model specific"
     
     def info(self, detailed = False, verbose=True, img_size=640):
-        return model_info(self, detailed=detailed, verbose=verbose, imgsz=img_size)
+        return model_info(self, detailed=detailed, verbose=verbose, img_size=img_size)
     
 class RTDETR_DetModel(RTDETR_Model):
     def __init__(self, model_name="dfine-nano-det", num_classes=None, verbose=True):
@@ -491,7 +595,7 @@ class RTDETR_DetModel(RTDETR_Model):
 
         self.model, self.loss_config, self.matcher_config = build_rtdetr(task, self.num_classes, size, verbose, model_name)
         head = self.model.decoder
-        self.num_classes = num_classes
+        self.names = {i: f"{i}" for i in range(self.num_classes)}
         self.reg_max = head.reg_max
         self.stride = torch.Tensor([32])
         if verbose:

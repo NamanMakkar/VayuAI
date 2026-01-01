@@ -4,7 +4,7 @@ Pose estimation is a task that involves identifying the location of specific poi
 
 The output of a pose estimation model is a set of points that represent the keypoints on an object in the image, usually along with the confidence scores for each point. Pose estimation is a good choice when you need to identify specific parts of an object in a scene, and their location in relation to each other.
 
-The VajraV1 Pose models use the '-pose' suffix, i.e. 'vajra-v1-nano-pose.pt'. These models are trained on the [COCO keypoints](https://github.com/NamanMakkar/VayuAI/vajra/configs/datasets/coco-pose.yaml) dataset and are suitable for a variety of pose estimation tasks.
+The VajraV1 Pose models use the '-pose' suffix, i.e. 'vajra-v1-nano-pose.pt'. These models are trained on the [COCO keypoints](https://github.com/NamanMakkar/VayuAI/blob/main/vajra/configs/datasets/coco-pose.yaml) dataset and are suitable for a variety of pose estimation tasks.
 
 In the default VajraV1 pose model, there are 17 keypoints, each representing a different part of the human body. Here is a mapping of each index to its respective body joint:
 
@@ -28,7 +28,7 @@ In the default VajraV1 pose model, there are 17 keypoints, each representing a d
 
 ## Models
 
-The VajraV1 Pose Estimation models are shown here. VajraV1 detection, segmentation and pose models have been pretrained on the [COCO](https://github.com/NamanMakkar/VayuAI/vajra/configs/datasets/coco.yaml) dataset. The Classification models is being trained on the [ImageNet](https://github.com/NamanMakkar/VayuAI/vajra/configs/datasets/) dataset.
+The VajraV1 Pose Estimation models are shown here. VajraV1 detection, segmentation and pose models have been pretrained on the [COCO](https://github.com/NamanMakkar/VayuAI/blob/main/vajra/configs/datasets/coco.yaml) dataset. The Classification models is being trained on the [ImageNet](https://github.com/NamanMakkar/VayuAI/blob/main/vajra/configs/datasets/) dataset.
 
 ## Train
 

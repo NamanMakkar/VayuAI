@@ -6,9 +6,7 @@ import torch
 from torch import nn
 from torch.nn.init import trunc_normal_
 
-from vajra.nn.transformer import MLP
-
-from .blocks import SAM2TwoWayTransformer
+from .blocks import SAM2TwoWayTransformer, MLP
 from .decoders import MaskDecoder, SAM2MaskDecoder
 from .encoders import ImageEncoderViT, PromptEncoder
 from .utils import get_1d_sine_pe, select_closest_cond_frames
@@ -33,12 +31,12 @@ class SAMModel(nn.Module):
         self.register_buffer("pixel_mean", torch.Tensor(pixel_mean).view(-1, 1, 1), False)
         self.register_buffer("pixel_std", torch.Tensor(pixel_std).view(-1, 1, 1), False)
 
-    def set_img_sz(self, imgsz):
+    def set_img_sz(self, img_size):
         if hasattr(self.image_encoder, "set_img_size"):
-            self.image_encoder.set_imgsz(imgsz)
-        self.prompt_encoder.input_image_size = imgsz
-        self.prompt_encoder.image_embedding_size = [x // 16 for x in imgsz]
-        self.image_encoder.img_size = imgsz[0]
+            self.image_encoder.set_img_size(img_size)
+        self.prompt_encoder.input_image_size = img_size
+        self.prompt_encoder.image_embedding_size = [x // 16 for x in img_size]
+        self.image_encoder.img_size = img_size[0]
 
 class SAM2Model(torch.nn.Module):
     mask_threshold: float = 0.0
@@ -928,13 +926,13 @@ class SAM2Model(torch.nn.Module):
         pred_masks = torch.where(keep, pred_masks, torch.clamp(pred_masks, max=-10.0))
         return pred_masks
 
-    def set_imgsz(self, imgsz):
+    def set_img_size(self, img_size):
         """
         Set image size to make model compatible with different image sizes.
 
         Args:
-            imgsz (Tuple[int, int]): The size of the input image.
+            img_size (Tuple[int, int]): The size of the input image.
         """
-        self.image_size = imgsz[0]
-        self.sam_prompt_encoder.input_image_size = imgsz
-        self.sam_prompt_encoder.image_embedding_size = [x // 16 for x in imgsz]  # fixed ViT patch size of 16
+        self.image_size = img_size[0]
+        self.sam_prompt_encoder.input_image_size = img_size
+        self.sam_prompt_encoder.image_embedding_size = [x // 16 for x in img_size]  # fixed ViT patch size of 16
