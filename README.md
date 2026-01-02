@@ -54,8 +54,8 @@ To request for an Enterprise License please get in touch via [Email](mailto:nama
 | Model                                                                                | Size (pixels) | OBB mAP<sup>val<br>50-95</sup>  Original | OBB mAP<sup>val<br>50-95</sup> Multi-Scale | Speed<br><sup>RTX 4090 TensorRT10 Latency (ms)</sup> | Params (M) | FLOPs (B) |
 |-------------------------------------------------------------------------------------|---------------|-------------------------------|-------------------------------|-----------------------------------------------------|------------|-----------|
 | [VajraV1-nano-obb](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.6/vajra-v1-nano-obb.pt) | 1024           | 50.8                          | 62.8                             | 1.1                                                 | 3.82       | 35.8      |
-| [VajraV1-small-obb](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.6/vajra-v1-small-obb.pt) | 1024           | 65                          | 88.9                             | 1.7                                                 | 11.84      | 124.8      |
-| [VajraV1-medium-obb](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.6/vajra-v1-medium-obb.pt) | 1024           | 68.5                          | 89.9                             | 2.3                                                 | 21.09      | 251.3      |
+| [VajraV1-small-obb](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.6/vajra-v1-small-obb.pt) | 1024           | 54.9                          | 65.4                             | 1.7                                                 | 11.84      | 124.8      |
+| [VajraV1-medium-obb](https://github.com/NamanMakkar/VayuAI/releases/download/v1.0.6/vajra-v1-medium-obb.pt) | 1024           | 55.9                          | 66.3                             | 2.3                                                 | 21.09      | 251.3      |
 
 <p align="center">
 <img width="100%" src="./vajra/assets/vajra_v1_obb_dotav1_perf.png" alt="VajraV1 OBB Performance on the DOTAv1 Dataset">
