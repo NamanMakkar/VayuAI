@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 import torch
 import torchvision.transforms as T
+import torch.nn.functional as F
 from typing import Optional, List, Any
 from vajra.utils import LOGGER, colorstr
 from vajra.checks import check_version

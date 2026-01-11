@@ -10,6 +10,7 @@ from vajra.nn.vajra import VajraEModel
 from vajra.dataset import VajraConcatDataset, build_vajra_dataset, build_vision_language_dataset
 from vajra.dataset.augment import LoadVisualPrompt
 from vajra.models.vajra.detect import DetectionTrainer, DetectionValidator
+from .val import VajraEDetectionValidator
 from vajra.utils import HYPERPARAMS_CFG_DICT, LOGGER, RANK, DATASETS_DIR
 from vajra.utils.torch_utils import unwrap_model
 from vajra.dataset.utils import check_det_dataset
@@ -34,7 +35,10 @@ class VajraETrainer(DetectionTrainer):
         return model
     
     def get_validator(self):
-        return super().get_validator()
+        self.loss_names = "box_loss", "cls_loss", "dfl_loss"
+        return VajraEDetectionValidator(
+            self.test_loader, save_dir=self.save_dir, args=copy(self.args), _callbacks=self.callbacks
+        )
     
     def build_dataset(self, img_path, mode="train", batch=None):
         gs = max(int(unwrap_model(self.model).stride.max() if self.model else 0), 32)
@@ -71,8 +75,8 @@ class VajraEPETrainer(DetectionTrainer):
 
 class VajraETrainerFromScratch(VajraETrainer):
     def __init__(self, config=HYPERPARAMS_CFG_DICT, model_configuration = None, _callbacks=None):
-        self.text_embeddings = None
         super().__init__(config, model_configuration, _callbacks)
+        self.text_embeddings = None
 
     def build_dataset(self, img_path, mode="train", batch=None):
         gs = max(int(unwrap_model(self.model).stride.max() if self.model else 0), 32)

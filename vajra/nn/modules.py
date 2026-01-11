@@ -8206,7 +8206,7 @@ class SwiGLUFFN2(nn.Module):
 
     def forward(self, x):
         x1 = self.fc1(x)
-        x11, x12 = x1.chunk(2, 1)
+        x11, x12 = x1.chunk(2, dim=-1)
         hidden = F.silu(x11) * x12
         return self.fc2(hidden)
 

@@ -1498,6 +1498,7 @@ class VajraEModel(DetectionModel):
         text_token = model.tokenize(text)
         txt_feats = [model.encode_text(token).detach() for token in text_token.split(batch)]
         txt_feats = txt_feats[0] if len(txt_feats) == 1 else torch.cat(txt_feats, dim=0)
+        txt_feats = txt_feats.reshape(-1, len(text), txt_feats.shape[-1])
         if without_reprta:
             return txt_feats
         

@@ -571,7 +571,7 @@ class GroundingDataset(VajraDetDataset):
                 }
             )
         x["hash"] = get_hash(self.json_file)
-        save_dataset_cache_file(self.prefix, path, x, DATASET_CACHE_VERSION)
+        save_dataset_cache_file(self.prefix, path, x)
         return x
     
     def verify_labels(self, labels: list[dict[str, Any]]) -> None:
@@ -639,6 +639,13 @@ class VajraConcatDataset(ConcatDataset):
     @staticmethod
     def collate_fn(batch):
         return VajraDetDataset.collate_fn(batch)
+    
+    def close_mosaic(self, hyp: dict) -> None:
+        for dataset in self.datasets:
+            if not hasattr(dataset, "close_mosaic"):
+                continue
+            dataset.close_mosaic(hyp)
+
 
 class ClassificationDataset(torchvision.datasets.ImageFolder):
     """

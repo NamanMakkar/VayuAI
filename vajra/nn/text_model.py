@@ -39,13 +39,13 @@ class CLIP(TextModel):
     def tokenize(self, texts: str | list[str]) -> torch.Tensor:
         return clip.tokenize(texts).to(self.device)
     
-    @smart_inference_mode
+    @smart_inference_mode()
     def encode_text(self, texts: torch.Tensor, dtype: torch.dtype = torch.float32) -> torch.Tensor:
         txt_feats = self.model.encode_text(texts).to(dtype)
         txt_feats = txt_feats / txt_feats.norm(p=2, dim=-1, keepdim=True)
         return txt_feats
     
-    @smart_inference_mode
+    @smart_inference_mode()
     def encode_images(self, image: Image.Image | torch.Tensor, dtype: torch.dtype = torch.float32) -> torch.Tensor:
         if isinstance(image, Image.Image):
             image = self.image_preprocess(image).unsqueeze(0).to(self.device)

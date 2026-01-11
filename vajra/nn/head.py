@@ -1077,7 +1077,7 @@ class PEDetection(Detection):
         txt_feats = txt_feats.to(torch.float32).squeeze(0)
         for cls_head, bn_head in zip(self.branch_cls, self.branch3):
             assert isinstance(cls_head, nn.Sequential)
-            assert isinstance(bn_head, nn.Sequential)
+            assert isinstance(bn_head, BNContrastiveHead)
             conv = cls_head[-1]
             assert isinstance(conv, nn.Conv2d)
             logit_scale = bn_head.logit_scale
@@ -1165,8 +1165,7 @@ class PEDetection(Detection):
             x[i] = torch.cat((self.branch_det[i](x[i]), self.branch3[i](self.branch_cls[i](x[i]), cls_pe)), 1)
         if self.training:
             return x
-        self.num_det_layers = self.num_classes + self.reg_max * 4
-        #y = self._inference(x)
+        self.num_outputs_per_anchor = self.num_classes + self.reg_max * 4
 
         shape = x[0].shape
         x_cat = torch.cat([xi.view(shape[0], self.num_outputs_per_anchor, -1) for xi in x], 2)
